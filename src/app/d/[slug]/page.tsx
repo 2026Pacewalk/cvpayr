@@ -340,40 +340,112 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
 
       {/* ────────────────────────── CTA BAND ──────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="overflow-hidden rounded-[20px] bg-ink-950 p-8 sm:p-12">
-          <div className="grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
+        <div className="relative isolate overflow-hidden rounded-[24px] bg-ink-950 px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
+          {/* Two soft light sources: cobalt for the brand, a green hint that
+              ties to the WhatsApp action. Blurred far enough that they read as
+              depth rather than as shapes. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-32 -left-24 size-[420px] rounded-full bg-brand-600/30 blur-[110px]"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -bottom-36 size-[380px] rounded-full bg-success-600/20 blur-[110px]"
+          />
+          {/* A faint grid, faded out towards the edges so it never draws
+              attention on its own. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]"
+          />
+
+          <div className="relative grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
             <div>
-              <h2 className="font-display text-[24px] leading-tight font-semibold text-white sm:text-[32px]">
-                Not sure which car fits? Tell us what you need.
+              <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-white/70 uppercase ring-1 ring-white/10 ring-inset">
+                <Sparkles className="size-3" />
+                Personal shortlist
+              </p>
+
+              <h2 className="mt-4 font-display text-[26px] leading-[1.15] font-semibold tracking-[-0.02em] text-white sm:text-[34px]">
+                Not sure which car fits?{" "}
+                <span className="bg-gradient-to-r from-brand-300 to-white bg-clip-text text-transparent">
+                  Tell us what you need.
+                </span>
               </h2>
-              <p className="mt-3 max-w-lg text-[14.5px] leading-relaxed text-white/60">
-                Share your budget, body type and how you drive. Our team will shortlist the right
-                cars from all {stats.branches} showrooms and send them to you.
+
+              <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-white/60">
+                Share your budget, body type and how you drive. We will shortlist the right cars
+                {stats.branches > 1
+                  ? ` from all ${stats.branches} showrooms`
+                  : " from our current stock"}{" "}
+                and send them straight to you.
+              </p>
+
+              {/* Buttons sized to their content. WhatsApp leads because that is
+                  how most buyers here actually want to talk. */}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                {dealer.whatsapp && (
+                  <a
+                    href={whatsappHref(
+                      dealer.whatsapp,
+                      `Hi ${dealer.name}, I am looking for a car. Can you help me shortlist?`,
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-[12px] bg-success-600 px-6 text-[14.5px] font-semibold text-white shadow-[0_8px_24px_-8px_rgba(5,150,105,0.7)] transition-all hover:bg-success-500 hover:shadow-[0_10px_28px_-8px_rgba(5,150,105,0.85)]"
+                  >
+                    <MessageCircle className="size-[18px]" />
+                    Chat on WhatsApp
+                  </a>
+                )}
+                <Link
+                  href={`${base}/contact`}
+                  className="group inline-flex h-12 items-center justify-center gap-2 rounded-[12px] border border-white/20 bg-white/5 px-6 text-[14.5px] font-medium text-white transition-colors hover:border-white/35 hover:bg-white/10"
+                >
+                  Request a callback
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </div>
+
+              <p className="mt-5 text-[12.5px] text-white/35">
+                No obligation · we only send cars that match what you asked for
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-              <Link
-                href={`${base}/contact`}
-                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-[12px] bg-white px-6 text-[14.5px] font-medium text-ink-950 hover:bg-white/90"
-              >
-                Request a callback
-                <ArrowRight className="size-4" />
-              </Link>
-              {dealer.whatsapp && (
-                <a
-                  href={whatsappHref(
-                    dealer.whatsapp,
-                    `Hi ${dealer.name}, I am looking for a car. Can you help me shortlist?`,
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-[12px] bg-success-600 px-6 text-[14.5px] font-medium text-white hover:bg-success-700"
-                >
-                  <MessageCircle className="size-4" />
-                  Chat on WhatsApp
-                </a>
-              )}
-            </div>
+
+            {/* What actually happens after they tap. Reduces the hesitation that
+                stops people using a contact form at all. */}
+            <ol className="relative space-y-px overflow-hidden rounded-[16px] bg-white/[0.04] ring-1 ring-white/10 ring-inset">
+              {[
+                {
+                  step: "01",
+                  title: "Tell us the budget",
+                  body: "Body type, fuel, how far you drive in a month.",
+                },
+                {
+                  step: "02",
+                  title: "We shortlist for you",
+                  body:
+                    stats.branches > 1
+                      ? `Hand-picked across all ${stats.branches} showrooms.`
+                      : "Hand-picked from the cars we have in stock.",
+                },
+                {
+                  step: "03",
+                  title: "Drive the ones you like",
+                  body: "Booked at whichever branch is closest to you.",
+                },
+              ].map((item) => (
+                <li key={item.step} className="flex gap-4 bg-ink-950/40 p-5">
+                  <span className="font-display text-[13px] font-semibold text-brand-300 tabular-nums">
+                    {item.step}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14.5px] font-semibold text-white">{item.title}</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-white/50">{item.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </section>
