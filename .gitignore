@@ -1,0 +1,31 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+out
+build
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Secrets — .env holds AUTH_SECRET and any provider credentials.
+# Copy .env.example to .env locally; never commit the real thing.
+.env
+.env.local
+.env.*.local
+
+# Local database (SQLite). Recreate with: npx prisma db push && npx prisma db seed
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# Uploaded media belongs in object storage, not in the repository
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Logs and OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

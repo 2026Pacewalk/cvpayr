@@ -1,0 +1,1031 @@
+// CarVyapar - multi-tenant used-car dealership platform
+// Datasource is SQLite for zero-config local development. The schema is written to be
+// portable: no SQLite-only types, enums modelled as String + constants in src/lib/constants.ts
+// so provider = "postgresql" is a one-line change for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// PLATFORM / SAAS
+// -------------------------------------------------------------
+
+model Plan {
+  id           String  @id @default(cuid())
+  code         String  @unique // starter | professional | enterprise
+  name         String
+  description  String?
+  priceMonthly Int     @default(0) // whole rupees
+  priceYearly  Int     @default(0)
+  sortOrder    Int     @default(0)
+  isActive     Boolean @default(true)
+
+  // Centralised limits - never hardcode these in feature code.
+  maxBranches         Int @default(1)
+  maxUsers            Int @default(3)
+  maxVehicles         Int @default(50)
+  maxImagesPerVehicle Int @default(15)
+  storageMb           Int @default(1024)
+
+  // Feature flags, JSON string: { "customDomain": true, "advancedReports": false }
+  features String @default("{}")
+
+  subscriptions Subscription[]
+  coupons       Coupon[]
+
+  @@map("plans")
+}
+
+// Platform-issued discount codes applied to what a dealership pays CarVyapar.in.
+model Coupon {
+  id            String  @id @default(cuid())
+  code          String  @unique // stored uppercase
+  description   String?
+  discountType  String  @default("percent") // percent | flat
+  discountValue Int // 25 => 25% off, or a flat rupee amount
+
+  // Restrict to one plan, or leave null to allow any plan.
+  planId String?
+
+  // How long the discount stays on the account once redeemed. null = forever.
+  durationMonths Int?
+
+  // Redemption caps. null = unlimited.
+  maxRedemptions  Int?
+  redemptionCount Int  @default(0)
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+  isActive   Boolean   @default(true)
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  plan        Plan?              @relation(fields: [planId], references: [id], onDelete: SetNull)
+  redemptions CouponRedemption[]
+
+  @@index([isActive])
+  @@map("coupons")
+}
+
+// One row per dealership that redeemed a coupon. Prices are snapshotted so a
+// later plan price change never rewrites what a dealer was actually charged.
+model CouponRedemption {
+  id       String @id @default(cuid())
+  couponId String
+  dealerId String
+  planId   String
+
+  originalPrice  Int
+  discountAmount Int
+  finalPrice     Int
+
+  appliedById String?
+  startsAt    DateTime  @default(now())
+  expiresAt   DateTime?
+  status      String    @default("active") // active | expired | revoked
+  createdAt   DateTime  @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, dealerId])
+  @@index([dealerId, status])
+  @@map("coupon_redemptions")
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  dealerId         String    @unique
+  planId           String
+  status           String    @default("trial") // trial | active | suspended | expired | cancelled
+  billingCycle     String    @default("monthly") // monthly | yearly
+  startedAt        DateTime  @default(now())
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  cancelledAt      DateTime?
+  notes            String?
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// -------------------------------------------------------------
+// TENANT
+// -------------------------------------------------------------
+
+model Dealer {
+  id        String  @id @default(cuid())
+  slug      String  @unique // public URL: /d/<slug>
+  name      String
+  legalName String?
+  tagline   String?
+  about     String?
+  logoUrl   String?
+  coverUrl  String?
+
+  contactPerson String?
+  phone         String?
+  whatsapp      String?
+  email         String?
+  website       String?
+
+  addressLine String?
+  city        String?
+  state       String?
+  pincode     String?
+  mapsUrl     String?
+  mapEmbedUrl String?
+
+  gstin     String?
+  panNumber String?
+
+  facebookUrl  String?
+  instagramUrl String?
+  youtubeUrl   String?
+  linkedinUrl  String?
+
+  workingHours String? // JSON: [{day, open, close, closed}]
+  customDomain String? @unique
+
+  status    String   @default("trial") // trial | active | suspended | expired
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription      Subscription?
+  websiteSettings   WebsiteSettings?
+  crmSettings       CrmSettings?
+  branches          Branch[]
+  users             User[]
+  roles             Role[]
+  vehicles          Vehicle[]
+  customers         Customer[]
+  leads             Lead[]
+  leadActivities    LeadActivity[]
+  followUps         FollowUp[]
+  testDrives        TestDrive[]
+  bookings          Booking[]
+  sales             Sale[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  catalogs          SharedCatalog[]
+  testimonials      Testimonial[]
+  couponRedemptions CouponRedemption[]
+  requirements      CustomerRequirement[]
+  whatsappTemplates WhatsappTemplate[]
+
+  @@index([status])
+  @@map("dealers")
+}
+
+model WebsiteSettings {
+  id       String @id @default(cuid())
+  dealerId String @unique
+
+  themeAccent      String  @default("#2f5be0")
+  heroHeadline     String?
+  heroSubheadline  String?
+  heroImageUrl     String?
+  showFinance      Boolean @default(true)
+  showSellYourCar  Boolean @default(true)
+  showTestimonials Boolean @default(true)
+  whyChooseUs      String? // JSON: [{icon,title,body}]
+  metaTitle        String?
+  metaDescription  String?
+  isPublished      Boolean @default(true)
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@map("website_settings")
+}
+
+model Branch {
+  id           String   @id @default(cuid())
+  dealerId     String
+  code         String
+  name         String
+  addressLine  String?
+  city         String
+  state        String?
+  pincode      String?
+  mapsUrl      String?
+  mapEmbedUrl  String?
+  phone        String?
+  whatsapp     String?
+  email        String?
+  openingHours String?
+  images       String? // JSON array of urls
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  dealer    Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  managerId String?
+  manager   User?   @relation("BranchManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  vehicles      Vehicle[]
+  leads         Lead[]
+  testDrives    TestDrive[]
+  bookings      Booking[]
+  sales         Sale[]
+  members       UserBranch[]
+  requirements  CustomerRequirement[]
+  notifications Notification[]
+
+  @@unique([dealerId, code])
+  @@index([dealerId, isActive])
+  @@map("branches")
+}
+
+// -------------------------------------------------------------
+// RBAC
+// -------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(cuid())
+  dealerId    String? // null = platform-level system role template
+  key         String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  // Permission keys as a JSON string array. Central catalogue in src/lib/permissions.ts
+  permissions String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dealer Dealer? @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([dealerId, key])
+  @@map("roles")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  dealerId     String? // null = SUPER ADMIN (platform staff)
+  roleId       String?
+  isSuperAdmin Boolean @default(false)
+
+  name         String
+  email        String    @unique
+  phone        String?
+  whatsapp     String?
+  passwordHash String
+  avatarUrl    String?
+  designation  String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  dealer Dealer? @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  role   Role?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  branches        UserBranch[]
+  managedBranches Branch[]              @relation("BranchManager")
+  assignedLeads   Lead[]                @relation("LeadOwner")
+  createdVehicles Vehicle[]             @relation("VehicleCreatedBy")
+  activities      LeadActivity[]
+  followUps       FollowUp[]
+  testDrives      TestDrive[]
+  bookings        Booking[]
+  sales           Sale[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  catalogs        SharedCatalog[]
+  requirements    CustomerRequirement[] @relation("RequirementCreatedBy")
+
+  notificationPreference NotificationPreference?
+  actionDismissals       ActionDismissal[]
+
+  @@index([dealerId, isActive])
+  @@map("users")
+}
+
+// A user may be scoped to one or many branches. No rows = all branches of the dealer.
+model UserBranch {
+  id       String @id @default(cuid())
+  userId   String
+  branchId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@map("user_branches")
+}
+
+// -------------------------------------------------------------
+// INVENTORY
+// -------------------------------------------------------------
+
+model Vehicle {
+  id       String @id @default(cuid())
+  dealerId String
+  branchId String
+  stockId  String // human readable, unique per dealer
+
+  registrationNumber String?
+  make               String
+  model              String
+  variant            String?
+  year               Int
+  registrationYear   Int?
+  fuelType           String
+  transmission       String
+  bodyType           String
+  colour             String?
+  ownership          Int     @default(1)
+  kmDriven           Int     @default(0)
+  registrationState  String?
+  rto                String?
+
+  insuranceStatus    String? // comprehensive | third_party | expired | none
+  insuranceValidTill DateTime?
+  fitnessValidTill   DateTime?
+  pucValidTill       DateTime?
+
+  sellingPrice       Int
+  originalPrice      Int?
+  negotiable         Boolean @default(true)
+  minAcceptablePrice Int? // PRIVATE
+  purchasePrice      Int? // PRIVATE
+  refurbishmentCost  Int     @default(0) // PRIVATE
+
+  conditionRating         Float? // 0..5
+  serviceHistory          String? // full | partial | none
+  accidental              Boolean @default(false)
+  floodDamaged            Boolean @default(false)
+  repaintedPanels         Int     @default(0)
+  tyreCondition           String?
+  batteryCondition        String?
+  engineCondition         String?
+  interiorCondition       String?
+  exteriorCondition       String?
+  numberOfKeys            Int     @default(1)
+  serviceRecordsAvailable Boolean @default(false)
+  rcAvailable             Boolean @default(true)
+  insuranceAvailable      Boolean @default(false)
+
+  description   String?
+  internalNotes String?
+  features      String  @default("[]") // JSON array of feature keys + custom strings
+
+  status       String  @default("draft") // draft|available|reserved|booked|sold|inactive
+  isFeatured   Boolean @default(false)
+  viewCount    Int     @default(0)
+  enquiryCount Int     @default(0)
+
+  listedAt  DateTime? // when it first became available - drives ageing
+  soldAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  createdById String?
+
+  dealer    Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  branch    Branch @relation(fields: [branchId], references: [id])
+  createdBy User?  @relation("VehicleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  images       VehicleImage[]
+  leads        Lead[]
+  testDrives   TestDrive[]
+  bookings     Booking[]
+  sales        Sale[]
+  catalogItems SharedCatalogItem[]
+  transfers    BranchTransfer[]
+
+  @@unique([dealerId, stockId])
+  @@index([dealerId, status])
+  @@index([dealerId, branchId, status])
+  @@index([make, model])
+  @@map("vehicles")
+}
+
+model VehicleImage {
+  id        String   @id @default(cuid())
+  vehicleId String
+  url       String
+  kind      String   @default("photo") // photo | video | youtube | view360
+  caption   String?
+  sortOrder Int      @default(0)
+  isCover   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, sortOrder])
+  @@map("vehicle_images")
+}
+
+model BranchTransfer {
+  id           String   @id @default(cuid())
+  vehicleId    String
+  fromBranchId String
+  toBranchId   String
+  movedById    String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("branch_transfers")
+}
+
+// -------------------------------------------------------------
+// CRM
+// -------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  dealerId  String
+  name      String
+  phone     String
+  whatsapp  String?
+  email     String?
+  city      String?
+  address   String?
+  notes     String?
+  tags      String? // JSON array
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer       Dealer                @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  testDrives   TestDrive[]
+  bookings     Booking[]
+  sales        Sale[]
+  requirements CustomerRequirement[]
+
+  @@unique([dealerId, phone]) // dedupe key
+  @@index([dealerId, name])
+  @@map("customers")
+}
+
+model Lead {
+  id         String  @id @default(cuid())
+  dealerId   String
+  reference  String // LD-0001
+  customerId String
+  vehicleId  String?
+  branchId   String?
+  ownerId    String?
+
+  stage        String  @default("new")
+  priority     String  @default("medium") // low | medium | high
+  source       String  @default("website")
+  sourceDetail String?
+  message      String?
+  budgetMin    Int?
+  budgetMax    Int?
+  requirement  String?
+
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  pageUrl     String?
+
+  lostReason     String?
+  lostReasonCode String? // see LOST_REASONS in src/lib/constants.ts
+
+  // Response-time tracking. Set once, the first time each milestone happens.
+  firstResponseAt  DateTime? // first outbound action of any kind by staff
+  firstContactAt   DateTime? // first time a human actually connected
+  assignmentMethod String    @default("manual") // manual | branch | round_robin | auto
+
+  nextFollowUpAt DateTime?
+  lastActivityAt DateTime  @default(now())
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  dealer   Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  owner    User?    @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  activities LeadActivity[]
+  followUps  FollowUp[]
+  testDrives TestDrive[]
+  bookings   Booking[]
+  sales      Sale[]
+
+  @@unique([dealerId, reference])
+  @@index([dealerId, stage])
+  @@index([dealerId, ownerId])
+  @@index([dealerId, branchId])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  dealerId  String
+  leadId    String
+  userId    String?
+  type      String // note | call | whatsapp | email | stage_change | assignment | test_drive | booking | sale | system
+  title     String
+  body      String?
+  meta      String? // JSON
+  createdAt DateTime @default(now())
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+  @@map("lead_activities")
+}
+
+model FollowUp {
+  id           String    @id @default(cuid())
+  dealerId     String
+  leadId       String
+  assignedToId String?
+  dueAt        DateTime
+  type         String    @default("call") // call | whatsapp | visit | test_drive | email
+  note         String?
+  status       String    @default("pending") // pending | done | cancelled
+  completedAt  DateTime?
+  outcome      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  dealer     Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  lead       Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedTo User?  @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, status, dueAt])
+  @@map("follow_ups")
+}
+
+model TestDrive {
+  id           String  @id @default(cuid())
+  dealerId     String
+  leadId       String?
+  customerId   String
+  vehicleId    String?
+  branchId     String?
+  assignedToId String?
+
+  scheduledAt DateTime
+  status      String   @default("requested") // requested|confirmed|completed|cancelled|no_show
+  location    String?
+  note        String?
+  feedback    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dealer     Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  assignedTo User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, status, scheduledAt])
+  @@map("test_drives")
+}
+
+model Booking {
+  id               String  @id @default(cuid())
+  dealerId         String
+  reference        String
+  leadId           String?
+  customerId       String
+  vehicleId        String
+  branchId         String?
+  salesExecutiveId String?
+
+  bookingAmount Int      @default(0)
+  agreedPrice   Int
+  bookedAt      DateTime @default(now())
+  paymentStatus String   @default("partial") // pending | partial | paid | refunded
+  paymentMode   String?
+  status        String   @default("active") // active | converted | cancelled
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  dealer         Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id])
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  salesExecutive User?    @relation(fields: [salesExecutiveId], references: [id], onDelete: SetNull)
+  sale           Sale?
+
+  @@unique([dealerId, reference])
+  @@index([dealerId, status])
+  @@map("bookings")
+}
+
+model Sale {
+  id               String  @id @default(cuid())
+  dealerId         String
+  reference        String
+  bookingId        String? @unique
+  leadId           String?
+  customerId       String
+  vehicleId        String
+  branchId         String?
+  salesExecutiveId String?
+
+  salePrice       Int
+  purchasePrice   Int      @default(0) // snapshot, PRIVATE
+  refurbCost      Int      @default(0) // snapshot, PRIVATE
+  otherCharges    Int      @default(0)
+  grossProfit     Int      @default(0) // computed at write time, PRIVATE
+  soldAt          DateTime @default(now())
+  paymentMode     String?
+  financeProvider String?
+  note            String?
+  createdAt       DateTime @default(now())
+
+  dealer         Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  booking        Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id])
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  salesExecutive User?    @relation(fields: [salesExecutiveId], references: [id], onDelete: SetNull)
+
+  @@unique([dealerId, reference])
+  @@index([dealerId, soldAt])
+  @@map("sales")
+}
+
+// -------------------------------------------------------------
+// SHARING / CATALOG
+// -------------------------------------------------------------
+
+model SharedCatalog {
+  id            String    @id @default(cuid())
+  dealerId      String
+  code          String    @unique
+  title         String
+  subtitle      String?
+  kind          String    @default("shortlist") // shortlist | filter | branch | full
+  filters       String? // JSON snapshot of query
+  createdById   String?
+  customerName  String?
+  customerPhone String?
+  viewCount     Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  dealer    Dealer              @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  createdBy User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items     SharedCatalogItem[]
+
+  @@map("shared_catalogs")
+}
+
+model SharedCatalogItem {
+  id        String  @id @default(cuid())
+  catalogId String
+  vehicleId String
+  sortOrder Int     @default(0)
+  note      String?
+
+  catalog SharedCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  vehicle Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogId, vehicleId])
+  @@map("shared_catalog_items")
+}
+
+model Testimonial {
+  id           String   @id @default(cuid())
+  dealerId     String
+  name         String
+  city         String?
+  rating       Int      @default(5)
+  body         String
+  vehicleLabel String?
+  avatarUrl    String?
+  isPublished  Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@map("testimonials")
+}
+
+// -------------------------------------------------------------
+// SYSTEM
+// -------------------------------------------------------------
+
+model Notification {
+  id        String   @id @default(cuid())
+  dealerId  String
+  userId    String? // null = broadcast to whole dealer
+  type      String
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // ---- Smart notification system ----
+  priority String @default("medium") // critical | high | medium | low
+  category String @default("general") // lead | followup | testdrive | booking | inventory | requirement | staff | system
+
+  // Branch the event belongs to. Branch-restricted staff only ever see their own.
+  branchId String?
+
+  // What the notification is about, so quick actions and dedupe can be precise.
+  entityType String? // lead | vehicle | followup | testdrive | booking | requirement | user
+  entityId   String?
+
+  // Who caused the event. Used to avoid notifying someone about their own action.
+  actorId String?
+
+  /**
+   * Idempotency key. The scheduled engine re-runs many times a day; a repeated
+   * key is skipped instead of creating a duplicate. Null means "always create".
+   */
+  dedupeKey String?
+
+  /**
+   * JSON payload for quick actions (phone number, WhatsApp text, due date …).
+   */
+  meta String?
+
+  readAt    DateTime?
+  expiresAt DateTime? // retention sweep deletes rows past this
+
+  dealer Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([dealerId, dedupeKey])
+  @@index([dealerId, userId, isRead])
+  @@index([dealerId, userId, createdAt])
+  @@index([dealerId, category, createdAt])
+  @@index([dealerId, expiresAt])
+  @@map("notifications")
+}
+
+/**
+ * Per-user delivery preferences. A missing row means "all defaults", so this is
+ * safe to add to an existing installation without a backfill.
+ */
+model NotificationPreference {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  dealerId String?
+
+  inApp       Boolean @default(true)
+  browserPush Boolean @default(false)
+  email       Boolean @default(false)
+  whatsapp    Boolean @default(false)
+  sound       Boolean @default(true)
+
+  /**
+   * Daily digest of what is due, sent in-app at digestHour local time.
+   */
+  digestEnabled Boolean @default(true)
+  digestHour    Int     @default(9)
+
+  /**
+   * Quiet hours. Non-critical alerts are held back between these hours.
+   */
+  quietStart Int? // 0..23
+  quietEnd   Int? // 0..23
+
+  /**
+   * JSON array of notification types this user has muted.
+   */
+  mutedTypes String @default("[]")
+
+  /**
+   * Lowest priority this user wants delivered: critical | high | medium | low.
+   */
+  minPriority String @default("low")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+/**
+ * Per-dealer operating thresholds.
+ * The single source of truth for "how late is late". The reminder engine, the
+ * response queue and the action centre all read these, so a dealership that
+ * works to a 15-minute response promise changes it once and every screen and
+ * every alert follows.
+ * A missing row means the defaults below, so this is safe to add to an existing
+ * installation with no backfill.
+ */
+model CrmSettings {
+  id       String @id @default(cuid())
+  dealerId String @unique
+
+  // Lead first-response promise, in minutes since the enquiry arrived.
+  slaAttentionMinutes  Int @default(15)
+  slaHighMinutes       Int @default(30)
+  slaCriticalMinutes   Int @default(60)
+  slaEscalationMinutes Int @default(180)
+
+  // Inventory ageing, in days since the car went live.
+  ageingWarnDays     Int @default(60)
+  ageingCriticalDays Int @default(90)
+
+  /**
+   * A live car with this many days and still no enquiry is worth looking at.
+   */
+  zeroEnquiryDays Int @default(14)
+
+  // Lead freshness, in days since the last activity.
+  leadWarmDays Int @default(3)
+  leadColdDays Int @default(7)
+
+  /**
+   * Days a booking may sit active before it is treated as at risk.
+   */
+  bookingExpiryDays Int @default(14)
+
+  /**
+   * How far ahead a test drive counts as "starting soon", in minutes.
+   */
+  testDriveSoonMinutes Int @default(120)
+
+  /**
+   * Days a lead may sit in one pipeline stage before it reads as stalled.
+   */
+  stageStallDays Int @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@map("crm_settings")
+}
+
+/**
+ * A person choosing to hide or postpone one item in the action centre.
+ * The action centre itself stores nothing — it is computed from live business
+ * state every time — so this is the only thing that needs persisting.
+ * `stateHash` captures how bad the situation was when it was dismissed. If it
+ * gets worse (the count rises, or it escalates to critical) the hash no longer
+ * matches and the item comes back, which is why a critical problem can never be
+ * permanently hidden.
+ */
+model ActionDismissal {
+  id       String @id @default(cuid())
+  dealerId String
+  userId   String
+
+  /**
+   * Stable identifier of the action, e.g. "leads.uncontacted" or "vehicle.ageing:<id>".
+   */
+  actionKey String
+
+  /**
+   * Null means hidden until the situation changes; a date means snoozed.
+   */
+  snoozedUntil DateTime?
+
+  stateHash String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, actionKey])
+  @@index([dealerId, userId])
+  @@map("action_dismissals")
+}
+
+/**
+ * One row per scheduled reminder sweep. Makes the engine observable and lets a
+ * run be skipped if an identical one already completed (idempotency at the run
+ * level; individual notifications are deduped by Notification.dedupeKey).
+ */
+model ReminderRun {
+  id       String  @id @default(cuid())
+  dealerId String?
+
+  job    String // followups | sla | testdrives | ageing | documents | bookings | digest | retention
+  runKey String // e.g. "followups:2026-08-31" — one successful run per key
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  created    Int       @default(0)
+  skipped    Int       @default(0)
+  error      String?
+
+  @@unique([job, runKey])
+  @@index([dealerId, job, startedAt])
+  @@map("reminder_runs")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  dealerId  String
+  userId    String?
+  action    String // create | update | delete | login | assign | status_change | export
+  entity    String // vehicle | lead | user | branch ...
+  entityId  String?
+  summary   String
+  diff      String? // JSON
+  ip        String?
+  createdAt DateTime @default(now())
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, createdAt])
+  @@map("audit_logs")
+}
+
+// -------------------------------------------------------------
+// DEMAND SIDE — what customers are looking for
+// -------------------------------------------------------------
+
+/// A customer's brief, recorded even when nothing in stock matches it yet.
+/// This is what new inventory gets matched against.
+model CustomerRequirement {
+  id          String  @id @default(cuid())
+  dealerId    String
+  customerId  String
+  createdById String?
+  branchId    String?
+  leadId      String?
+
+  budgetMin Int?
+  budgetMax Int?
+
+  make          String?
+  model         String?
+  // JSON string arrays so a customer can accept several options.
+  fuelTypes     String  @default("[]")
+  transmissions String  @default("[]")
+  bodyTypes     String  @default("[]")
+
+  yearMin      Int?
+  kmMax        Int?
+  ownershipMax Int?
+  colour       String?
+  city         String?
+
+  notes    String?
+  priority String  @default("medium") // low | medium | high
+  status   String  @default("open") // open | matched | fulfilled | expired | cancelled
+
+  expiresAt      DateTime?
+  lastMatchedAt  DateTime?
+  lastNotifiedAt DateTime?
+  closedAt       DateTime?
+  closedReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer    Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("RequirementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  branch    Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, status])
+  @@index([dealerId, priority])
+  @@map("customer_requirements")
+}
+
+/// Reusable WhatsApp messages a dealer can edit once and use everywhere.
+model WhatsappTemplate {
+  id       String @id @default(cuid())
+  dealerId String
+
+  key      String // vehicle_details | follow_up | test_drive | booking | shortlist | location | custom-*
+  name     String
+  category String @default("general") // lead | vehicle | booking | general
+  body     String // supports {{customer}}, {{vehicle}}, {{link}}, {{dealer}}, {{price}} ...
+
+  isActive  Boolean  @default(true)
+  isSystem  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  useCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([dealerId, key])
+  @@map("whatsapp_templates")
+}
