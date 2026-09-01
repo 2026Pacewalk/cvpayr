@@ -1,0 +1,10 @@
+# Scheduled reminders for CarVyapar.in
+#   crontab -e   and paste the line below, with your real CRON_SECRET.
+#
+# Every ten minutes. Overlapping or repeated runs are safe: every notification
+# carries a dedupe key, so a repeat is skipped rather than duplicated.
+
+*/10 * * * * curl -fsS -X POST https://carvyapar.in/api/cron/reminders -H "x-cron-secret: YOUR_CRON_SECRET" >/dev/null 2>&1
+
+# Nightly database backup, kept off this machine ideally.
+30 2 * * * pg_dump -U carvyapar carvyapar | gzip > /var/backups/carvyapar-$(date +\%F).sql.gz

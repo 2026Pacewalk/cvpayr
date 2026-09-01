@@ -1,0 +1,29 @@
+# systemd alternative to PM2.
+#   sudo cp deploy/carvyapar.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now carvyapar
+
+[Unit]
+Description=CarVyapar.in
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/srv/carvyapar
+EnvironmentFile=/srv/carvyapar/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+Restart=always
+RestartSec=5
+
+# The app only ever writes to public/uploads; everything else can stay read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/carvyapar/public/uploads
+
+[Install]
+WantedBy=multi-user.target
