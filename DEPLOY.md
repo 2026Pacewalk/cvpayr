@@ -9,6 +9,30 @@ nothing exotic to configure.
 
 ---
 
+## The short version
+
+On a fresh Ubuntu server, this does everything below in one go:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/2026Pacewalk/cvpayr/main/deploy/bootstrap.sh | sudo bash
+```
+
+Then create your login:
+
+```bash
+cd /srv/carvyapar
+node scripts/init-platform.mjs --email you@carvyapar.in --name "Your Name"
+```
+
+It prints a generated password once. Sign in at `https://carvyapar.in/login`,
+change it, then create your first dealership at **/admin/dealers**.
+
+The script is safe to re-run — it skips whatever is already done, never seeds
+demo data, and never drops a database. If you would rather understand each
+step, or something failed, work through the rest of this document by hand.
+
+---
+
 ## 0. Before you start
 
 Check the domain actually resolves to the server:
@@ -170,16 +194,29 @@ redirect, and installs a renewal timer.
 
 ---
 
-## 7. Create the first real dealership
+## 7. Create your platform login
 
-The seed data is a demo. For a live install:
+A fresh database has no users, so there is nothing to sign in with. This creates
+the three subscription plans and your super admin, and nothing else:
 
-1. Sign in as the super admin you created, at `https://carvyapar.in/login`.
+```bash
+cd /srv/carvyapar
+node scripts/init-platform.mjs --email you@carvyapar.in --name "Your Name"
+```
+
+It prints a generated password **once**. Copy it, sign in, change it.
+
+Then:
+
+1. Sign in at `https://carvyapar.in/login`.
 2. Go to **/admin/dealers** → *Add dealership*.
 3. Set the slug — it becomes the public showroom URL, `carvyapar.in/d/<slug>`.
 
-If you seeded the demo data, change every demo password before going live. They
-are all `password123` and they are printed in the README.
+The script is safe to re-run; it leaves existing plans and users alone unless
+you pass `--force` to reset a password.
+
+Do not run `npm run db:seed` on this server. It wipes the database and inserts
+the demo dealership, whose every password is `password123`.
 
 ---
 

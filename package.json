@@ -10,6 +10,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && npm run db:seed",
+    "init:platform": "node scripts/init-platform.mjs",
     "setup": "prisma generate && prisma db push && npm run db:seed"
   },
   "prisma": {
