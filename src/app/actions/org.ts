@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireDealerUser, hashPassword } from "@/lib/auth";
 import { assertCan } from "@/lib/rbac";
 import { PERMISSIONS, ALL_PERMISSIONS, type PermissionKey } from "@/lib/permissions";
+import { TEMPLATES, isTemplateKey } from "@/lib/templates";
 import { assertWithinLimit, PlanLimitError } from "@/lib/plan";
 import { audit, notify, notifyRecipients } from "@/server/events";
 import { normalisePhone, slugify } from "@/lib/utils";
@@ -615,6 +616,16 @@ export async function updateWebsiteSettings(
     }))
     .filter((w) => w.title);
 
+  // Only a key from the catalogue is ever stored, so a crafted form value
+  // cannot leave the showroom trying to render a template that does not exist.
+  const submittedTemplate = String(formData.get("template") ?? "");
+  const template = isTemplateKey(submittedTemplate) ? submittedTemplate : "momentum";
+
+  // A blank accent means "use whatever the template ships with".
+  const accent = get("themeAccent");
+  const themeAccent =
+    accent && /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : TEMPLATES[template].defaultAccent;
+
   await db.websiteSettings.upsert({
     where: { dealerId: user.dealerId },
     create: {
@@ -629,6 +640,8 @@ export async function updateWebsiteSettings(
       showTestimonials: formData.get("showTestimonials") === "on",
       isPublished: formData.get("isPublished") === "on",
       whyChooseUs: JSON.stringify(whyChooseUs),
+      template,
+      themeAccent,
     },
     update: {
       heroHeadline: get("heroHeadline"),
@@ -641,6 +654,8 @@ export async function updateWebsiteSettings(
       showTestimonials: formData.get("showTestimonials") === "on",
       isPublished: formData.get("isPublished") === "on",
       whyChooseUs: JSON.stringify(whyChooseUs),
+      template,
+      themeAccent,
     },
   });
 
@@ -650,10 +665,12 @@ export async function updateWebsiteSettings(
     action: "update",
     entity: "website",
     entityId: user.dealerId,
-    summary: "Updated public website settings",
+    summary: `Updated the public website (template: ${template})`,
   });
 
   revalidatePath("/website");
-  revalidatePath(`/d/${user.dealerSlug}`);
+  // "layout", not the default: the template is applied in the showroom layout,
+  // so revalidating only the page would leave every sub-page on the old design.
+  revalidatePath(`/d/${user.dealerSlug}`, "layout");
   return { status: "success", message: "Website updated" };
 }

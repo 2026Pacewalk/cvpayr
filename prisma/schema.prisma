@@ -191,6 +191,10 @@ model WebsiteSettings {
   id       String @id @default(cuid())
   dealerId String @unique
 
+  /**
+   * Which visual template the showroom renders with. See src/lib/templates.ts.
+   */
+  template         String  @default("momentum")
   themeAccent      String  @default("#2f5be0")
   heroHeadline     String?
   heroSubheadline  String?

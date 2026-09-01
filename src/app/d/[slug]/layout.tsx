@@ -5,8 +5,17 @@ import { MapPin, Phone, Mail, Clock, Facebook, Instagram, Youtube, Car } from "l
 import { getDealerBySlug, dealerWorkingHours } from "@/server/dealer";
 import { PublicHeader } from "@/components/public/PublicHeader";
 import { whatsappHref, telHref } from "@/lib/utils";
+import { resolveTemplate, templateVars } from "@/lib/templates";
 
 type Params = { params: Promise<{ slug: string }> };
+
+/**
+ * The showroom is a live storefront — cars sell, prices move and a dealer can
+ * switch template at any moment. Caching the shell would leave a customer
+ * looking at stock that is gone and a dealer wondering why their new design
+ * never appeared.
+ */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
@@ -57,8 +66,22 @@ export default async function PublicLayout({
 
   const hours = dealerWorkingHours(dealer);
 
+  // The chosen template decides typography, shape and hero composition for every
+  // page under this route. Only its own font pairing is requested, so a dealer
+  // never pays to download four typefaces they are not using.
+  const template = resolveTemplate(settings?.template);
+  const vars = templateVars(template, settings?.themeAccent);
+
   return (
-    <div className="flex min-h-dvh flex-col bg-white">
+    <div
+      className={`tpl tpl-${template.key} flex min-h-dvh flex-col bg-white`}
+      style={vars as React.CSSProperties}
+      data-template={template.key}
+    >
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link rel="stylesheet" href={template.fonts.href} />
+
       <PublicHeader dealer={dealer} links={links} base={base} />
 
       <main className="flex-1">{children}</main>

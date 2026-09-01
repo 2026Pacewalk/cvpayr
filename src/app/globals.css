@@ -195,6 +195,48 @@
     border-radius: var(--radius-sm);
   }
 
+  /*
+   * Showroom templates.
+   *
+   * Everything below the `.tpl` root reads shape and type from custom
+   * properties, so switching template swaps a handful of variables rather than
+   * rewriting components. Set in src/lib/templates.ts.
+   */
+  .tpl {
+    font-family: var(--tpl-font-body);
+    font-size: var(--tpl-body-size);
+  }
+  .tpl h1,
+  .tpl h2,
+  .tpl h3,
+  .tpl .tpl-display {
+    font-family: var(--tpl-font-display);
+    font-weight: var(--tpl-display-weight);
+    letter-spacing: var(--tpl-display-tracking);
+  }
+  .tpl-card {
+    border-radius: var(--tpl-radius-card);
+  }
+  .tpl-button {
+    border-radius: var(--tpl-radius-button);
+  }
+  .tpl-image {
+    border-radius: var(--tpl-radius-image);
+  }
+  .tpl-chip {
+    border-radius: var(--tpl-radius-chip);
+  }
+  /* The dealer's own accent, so a template never hardcodes a brand colour. */
+  .tpl-accent-bg {
+    background-color: var(--tpl-accent);
+  }
+  .tpl-accent-text {
+    color: var(--tpl-accent);
+  }
+  .tpl-accent-border {
+    border-color: var(--tpl-accent);
+  }
+
   /* Safe-area padding for sticky mobile action bars */
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);

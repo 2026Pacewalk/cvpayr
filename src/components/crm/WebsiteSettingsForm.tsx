@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Sparkles, Search, LayoutGrid, ShieldCheck } from "lucide-react";
+import { Sparkles, Search, LayoutGrid, ShieldCheck, Palette } from "lucide-react";
 import type { OrgActionState } from "@/app/actions/org";
 import { Field, Input, Textarea, Select, Switch, FormGrid, FormSection } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { Alert } from "@/components/ui/Toast";
 import type { WhyChooseUsItem } from "@/server/dealer";
+import { TemplatePicker } from "./TemplatePicker";
 
 const ICON_OPTIONS = [
   { value: "shield", label: "Shield — inspection / trust" },
@@ -18,6 +19,7 @@ const ICON_OPTIONS = [
 export function WebsiteSettingsForm({
   action,
   values,
+  previewBase,
 }: {
   action: (prev: OrgActionState, formData: FormData) => Promise<OrgActionState>;
   values: {
@@ -31,7 +33,11 @@ export function WebsiteSettingsForm({
     showTestimonials: boolean;
     isPublished: boolean;
     whyChooseUs: WhyChooseUsItem[];
+    template: string;
+    themeAccent: string | null;
   };
+  /** Public URL of this dealer's showroom, for the "open live site" link. */
+  previewBase: string;
 }) {
   const [state, formAction] = useActionState<OrgActionState, FormData>(action, { status: "idle" });
 
@@ -43,6 +49,18 @@ export function WebsiteSettingsForm({
       {state.status === "error" && state.message && (
         <Alert tone="error" title="Could not save">{state.message}</Alert>
       )}
+
+      <FormSection
+        title="Choose a look"
+        description="Five templates, each with its own layout, typefaces and shapes. Switching one never touches your cars or your copy."
+        icon={<Palette className="size-4" />}
+      >
+        <TemplatePicker
+          value={values.template}
+          accent={values.themeAccent}
+          previewBase={previewBase}
+        />
+      </FormSection>
 
       <FormSection
         title="Hero section"

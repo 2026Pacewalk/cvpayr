@@ -10,10 +10,11 @@ import {
 } from "@/server/dealer";
 import { listVehicles, vehicleFacets } from "@/server/inventory";
 import { PublicVehicleCard } from "@/components/VehicleCard";
-import { HeroSearch } from "@/components/public/HeroSearch";
+import { ShowroomHero } from "@/components/public/ShowroomHero";
 import { EmptyState } from "@/components/ui/primitives";
 import { PRICE_BUCKETS } from "@/lib/constants";
-import { formatPrice, whatsappHref, telHref, vehicleSlug } from "@/lib/utils";
+import { resolveTemplate, type TemplateDefinition } from "@/lib/templates";
+import { formatPrice, whatsappHref, telHref, vehicleSlug, cn } from "@/lib/utils";
 
 const ICONS: Record<string, typeof ShieldCheck> = {
   shield: ShieldCheck,
@@ -42,65 +43,30 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
 
   const why = dealerWhyChooseUs(dealer);
   const settings = dealer.websiteSettings;
+  const template = resolveTemplate(settings?.template);
   const heroCars = featured.items.length >= 4 ? featured.items : recent.items;
 
   return (
     <>
-      {/* ───────────────────────────── HERO ───────────────────────────── */}
-      <section className="relative overflow-hidden bg-ink-950">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{
-            backgroundImage: `url(${settings?.heroImageUrl ?? dealer.coverUrl ?? ""})`,
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-ink-950/80 via-ink-950/75 to-ink-950/95" />
-
-        <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-medium text-white/70">
-            <Sparkles className="size-3.5" />
-            {stats.available} cars in stock across {stats.branches} showroom
-            {stats.branches === 1 ? "" : "s"}
-          </p>
-
-          <h1 className="mt-6 max-w-3xl font-display text-[32px] leading-[1.12] font-semibold text-white sm:text-[48px]">
-            {settings?.heroHeadline ?? "Find your next car, without the guesswork"}
-          </h1>
-          <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/65 sm:text-[17px]">
-            {settings?.heroSubheadline ??
-              dealer.tagline ??
-              "Inspected, fairly priced pre-owned cars with paperwork you can verify."}
-          </p>
-
-          <div className="mt-8 max-w-4xl">
-            <HeroSearch
-              base={base}
-              makes={facets.makes}
-              fuels={facets.fuels}
-              branches={dealer.branches.map((b) => ({ id: b.id, name: b.name, city: b.city }))}
-              priceMax={facets.priceMax}
-            />
-          </div>
-
-          <dl className="mt-12 grid max-w-3xl grid-cols-2 gap-6 border-t border-white/10 pt-8 sm:grid-cols-4">
-            {[
-              { k: "Cars in stock", v: stats.available },
-              { k: "Cars delivered", v: `${stats.sold}+` },
-              { k: "Showrooms", v: stats.branches },
-              { k: "Serving since", v: stats.since },
-            ].map((s) => (
-              <div key={s.k}>
-                <dd className="font-display text-[22px] leading-none font-semibold text-white tabular-nums">
-                  {s.v}
-                </dd>
-                <dt className="mt-1.5 text-[11.5px] font-medium tracking-[0.04em] text-white/40 uppercase">
-                  {s.k}
-                </dt>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
+      <ShowroomHero
+        template={template}
+        base={base}
+        dealerName={dealer.name}
+        headline={settings?.heroHeadline ?? "Find your next car, without the guesswork"}
+        subheadline={
+          settings?.heroSubheadline ??
+          dealer.tagline ??
+          "Inspected, fairly priced pre-owned cars with paperwork you can verify."
+        }
+        heroImage={settings?.heroImageUrl ?? dealer.coverUrl ?? heroCars[0]?.images[0]?.url ?? null}
+        stats={stats}
+        search={{
+          makes: facets.makes,
+          fuels: facets.fuels,
+          branches: dealer.branches.map((b) => ({ id: b.id, name: b.name, city: b.city })),
+          priceMax: facets.priceMax,
+        }}
+      />
 
       {/* ─────────────────────── BROWSE BY BODY TYPE ──────────────────── */}
       {bodyTypes.length > 0 && (
@@ -128,6 +94,7 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
       {/* ──────────────────────── FEATURED CARS ───────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
         <SectionHead
+          template={template}
           eyebrow="Handpicked"
           title="Featured cars this week"
           description="The cars our team would recommend to a friend."
@@ -186,6 +153,7 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
       {/* ─────────────────────── RECENTLY ADDED ───────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
         <SectionHead
+          template={template}
           eyebrow="Fresh stock"
           title="Recently added"
           description="New arrivals on our floor, inspected and ready to view."
@@ -243,6 +211,7 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
       {/* ───────────────────────── BRANCHES ───────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
         <SectionHead
+          template={template}
           eyebrow="Visit us"
           title="Our showrooms"
           description="Walk in for a test drive, or call ahead and we will keep the car ready."
@@ -453,36 +422,75 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
   );
 }
 
+/**
+ * A section heading, in the voice of the chosen template.
+ *
+ * Alignment and the small label above the title are the two things that most
+ * change how a page reads, so both follow the template rather than being fixed:
+ * Atelier centres everything under a spaced-out caps label, Metro sets a rule
+ * beside it, Velocity shouts it in the accent colour.
+ */
 function SectionHead({
   eyebrow,
   title,
   description,
   href,
   linkLabel,
+  template,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   href?: string;
   linkLabel?: string;
+  template: TemplateDefinition;
 }) {
+  const centred = template.heading === "centred";
+
+  const label = eyebrow ? (
+    template.eyebrow === "rule" ? (
+      <p className="flex items-center gap-3 text-[11px] font-semibold tracking-[0.14em] text-ink-500 uppercase">
+        <span className="tpl-accent-bg h-px w-7" />
+        {eyebrow}
+      </p>
+    ) : template.eyebrow === "caps" ? (
+      <p className="tpl-accent-text text-[11px] font-semibold tracking-[0.22em] uppercase">
+        {eyebrow}
+      </p>
+    ) : template.eyebrow === "pill" ? (
+      <p className="tpl-chip tpl-accent-text inline-flex bg-ink-100 px-2.5 py-1 text-[11px] font-semibold tracking-[0.06em] uppercase">
+        {eyebrow}
+      </p>
+    ) : null
+  ) : null;
+
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        {eyebrow && (
-          <p className="text-[11.5px] font-semibold tracking-[0.08em] text-brand-600 uppercase">
-            {eyebrow}
-          </p>
-        )}
-        <h2 className="mt-1.5 font-display text-[24px] leading-tight font-semibold text-ink-950 sm:text-[30px]">
+    <div
+      className={cn(
+        "flex flex-wrap gap-4",
+        centred ? "flex-col items-center text-center" : "items-end justify-between",
+      )}
+    >
+      <div className={cn(centred && "flex flex-col items-center")}>
+        {label}
+        <h2
+          className={cn(
+            "mt-2 text-[24px] leading-tight text-ink-950",
+            centred ? "sm:text-[36px]" : "sm:text-[30px]",
+          )}
+        >
           {title}
         </h2>
-        {description && <p className="mt-2 text-[14px] text-ink-500">{description}</p>}
+        {description && (
+          <p className={cn("mt-2 text-[14px] text-ink-500", centred && "max-w-xl")}>
+            {description}
+          </p>
+        )}
       </div>
       {href && linkLabel && (
         <Link
           href={href}
-          className="group inline-flex items-center gap-1.5 text-[13.5px] font-medium text-brand-700 hover:text-brand-800"
+          className="tpl-accent-text group inline-flex items-center gap-1.5 text-[13.5px] font-medium"
         >
           {linkLabel}
           <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />

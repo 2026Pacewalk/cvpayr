@@ -30,7 +30,9 @@ export function PublicVehicleCard({
   return (
     <article
       className={cn(
-        "group relative overflow-hidden rounded-[14px] border border-ink-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        // Corner radius comes from the active showroom template, so a card in
+        // Metro is near-square and the same card in Kinetic is fully rounded.
+        "tpl-card group relative overflow-hidden border border-ink-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
         className,
       )}
     >

@@ -102,7 +102,10 @@ export default async function WebsitePage() {
           showTestimonials: settings?.showTestimonials ?? true,
           isPublished: settings?.isPublished ?? true,
           whyChooseUs: safeJsonParse<WhyChooseUsItem[]>(settings?.whyChooseUs, []),
+          template: settings?.template ?? "momentum",
+          themeAccent: settings?.themeAccent ?? null,
         }}
+        previewBase={`/d/${user.dealerSlug}`}
       />
     </div>
   );
