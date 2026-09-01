@@ -6,21 +6,39 @@ A multi-tenant platform for used-car dealerships. Every dealer gets a **public d
 
 ## Quick start
 
+Needs **Node 20 or newer** and git. Nothing else — the local database is a
+SQLite file, so there is no database server to install.
+
 ```bash
+git clone https://github.com/2026Pacewalk/cvpayr.git
+cd cvpayr
 npm install
+cp .env.example .env      # Windows: copy .env.example .env
 npm run setup
 npm run dev
 ```
 
-`npm run setup` generates the Prisma client, creates the SQLite database and seeds a full demo dealership. Then open <http://localhost:3000>.
+Then open <http://localhost:3201>.
+
+The `.env` step matters and is easy to miss: secrets are not in the repository,
+so without it the app has no session signing key and no database URL. The
+defaults in `.env.example` work for local development as they are.
+
+`npm run setup` generates the Prisma client, creates the SQLite database and
+seeds a full demo dealership — two dealers, 31 vehicles, 23 leads, staff across
+three branches. Sign in with any account from the table below.
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Development server |
+| `npm run dev` | Development server on port 3201 |
 | `npm run build` | Production build |
+| `npm start` | Serve the production build |
 | `npm run setup` | Generate client + create DB + seed |
 | `npm run db:reset` | Wipe and re-seed the demo data |
 | `npm run db:seed` | Seed only |
+| `npm run init:platform` | Create plans + a super admin on an **empty** database (production) |
+
+To run on a different port: `npx next dev -p 4000`.
 
 ---
 
