@@ -29,8 +29,14 @@ die()  { printf '\n\033[0;31m✖ %s\033[0m\n\n' "$*" >&2; exit 1; }
 # ---------------------------------------------------------------- 0. DNS
 
 say "Checking DNS"
-SERVER_IP="$(curl -fsS --max-time 10 ifconfig.me || echo unknown)"
-DOMAIN_IP="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
+SERVER_IP="$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null \
+  || curl -fsS --max-time 10 ifconfig.me 2>/dev/null || echo unknown)"
+
+# Ask a public resolver directly. /etc/hosts entries and local DNS caches
+# routinely make a domain look correct here when the outside world disagrees,
+# and certbot only cares about the outside world.
+DOMAIN_IP="$(dig +short @1.1.1.1 "$DOMAIN" A 2>/dev/null | tail -1)"
+[ -n "${DOMAIN_IP:-}" ] || DOMAIN_IP="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
 
 echo "  this server : ${SERVER_IP}"
 echo "  ${DOMAIN} : ${DOMAIN_IP:-not resolving}"
@@ -51,7 +57,8 @@ say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq curl git ca-certificates gnupg nginx postgresql \
-  certbot python3-certbot-nginx openssl >/dev/null
+  certbot python3-certbot-nginx openssl cron dnsutils >/dev/null
+systemctl enable --now cron >/dev/null 2>&1 || true
 ok "base packages"
 
 if ! command -v node >/dev/null || [ "$(node -v | cut -c2- | cut -d. -f1)" -lt 20 ]; then
@@ -184,22 +191,34 @@ fi
 # ----------------------------------------------------------------- 9. Cron
 
 say "Scheduled reminders"
+
+# Everything below is best-effort. A missing cron daemon must not abort a
+# deploy that has already put a working site on the internet.
+set +e
+
 CRON_SECRET_VALUE="$(grep '^CRON_SECRET=' .env | cut -d'"' -f2)"
 CRON_LINE="*/10 * * * * curl -fsS -X POST http://127.0.0.1:${APP_PORT}/api/cron/reminders -H 'x-cron-secret: ${CRON_SECRET_VALUE}' >/dev/null 2>&1"
 
-if crontab -l 2>/dev/null | grep -q "api/cron/reminders"; then
+if ! command -v crontab >/dev/null 2>&1; then
+  warn "No crontab on this system. Reminders will not fire on a schedule."
+  warn "Fix with:  apt-get install -y cron && systemctl enable --now cron"
+elif crontab -l 2>/dev/null | grep -q "api/cron/reminders"; then
   ok "cron entry already present"
-else
-  ( crontab -l 2>/dev/null; echo "${CRON_LINE}" ) | crontab -
+elif ( crontab -l 2>/dev/null; echo "${CRON_LINE}" ) | crontab - 2>/dev/null; then
   ok "reminders will run every 10 minutes"
+else
+  warn "Could not write the crontab. Add this line by hand with 'crontab -e':"
+  echo "    ${CRON_LINE}"
 fi
 
 if curl -fsS -X POST "http://127.0.0.1:${APP_PORT}/api/cron/reminders" \
-     -H "x-cron-secret: ${CRON_SECRET_VALUE}" | grep -q '"ok"'; then
+     -H "x-cron-secret: ${CRON_SECRET_VALUE}" 2>/dev/null | grep -q '"ok"'; then
   ok "reminder endpoint verified"
 else
   warn "Reminder endpoint did not respond as expected — check it by hand."
 fi
+
+set -e
 
 # -------------------------------------------------------------- 10. Admin
 
@@ -220,6 +239,12 @@ else
   echo "  ${HAS_USER} user(s) already exist — sign in at https://${DOMAIN}/login"
 fi
 echo
+if [ "$DNS_OK" != true ]; then
+  echo "  ! The site is on http:// only — TLS was skipped because ${DOMAIN}"
+  echo "    did not resolve to ${SERVER_IP} when this ran."
+  echo "    Once DNS is correct:  certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
+  echo
+fi
 echo "  Logs      pm2 logs carvyapar"
 echo "  Restart   pm2 reload carvyapar"
 echo "  Update    cd ${APP_DIR} && git pull && npm ci && npm run build && pm2 reload carvyapar"
