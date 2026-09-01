@@ -4,21 +4,30 @@
  *   pm2 start ecosystem.config.cjs
  *   pm2 save && pm2 startup
  *
- * `cluster` mode runs one Node process per CPU behind PM2's load balancer, so a
- * single slow request cannot block the whole site. The app holds no in-process
- * state that would break across workers — sessions are signed cookies and
- * everything else is in Postgres.
+ * The port comes from PORT in .env, because a server rarely has only one app on
+ * it. Hardcoding 3000 and hoping is how you end up serving somebody else's site
+ * on your domain.
+ *
+ * Fork mode with a single instance by default: most VPSes run several apps, and
+ * one process per CPU per app oversubscribes the box. On a dedicated machine set
+ * PM2_INSTANCES=max in .env for one worker per core — the app holds no
+ * in-process state, so it clusters safely.
  */
+const port = process.env.PORT || "3000";
+const instances = process.env.PM2_INSTANCES || 1;
+
 module.exports = {
   apps: [
     {
       name: "carvyapar",
       cwd: "/srv/carvyapar",
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000",
-      instances: "max",
-      exec_mode: "cluster",
-      env: { NODE_ENV: "production", PORT: "3000" },
+      args: `start -p ${port}`,
+
+      instances,
+      exec_mode: instances === 1 || instances === "1" ? "fork" : "cluster",
+
+      env: { NODE_ENV: "production", PORT: port },
 
       // Restart on a memory leak rather than letting the box swap itself to death.
       max_memory_restart: "512M",

@@ -51,6 +51,25 @@ else
   warn "Once DNS propagates, run:  certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
 fi
 
+# --------------------------------------------------------------- 0b. Port
+
+# A server rarely hosts one app. Binding blind is how nginx ends up pointing
+# your domain at somebody else's site, so take a port nothing else holds.
+port_taken() { ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1$"; }
+
+say "Choosing a port"
+if port_taken "${APP_PORT}"; then
+  ORIGINAL_PORT="${APP_PORT}"
+  APP_PORT=""
+  for candidate in $(seq 3200 3260); do
+    if ! port_taken "${candidate}"; then APP_PORT="${candidate}"; break; fi
+  done
+  [ -n "${APP_PORT}" ] || die "No free port between 3200 and 3260."
+  warn "Port ${ORIGINAL_PORT} is already in use — using ${APP_PORT} instead."
+else
+  ok "port ${APP_PORT} is free"
+fi
+
 # ------------------------------------------------------------ 1. Packages
 
 say "Installing packages"
@@ -116,6 +135,13 @@ fi
 say "Environment"
 if [ -f .env ]; then
   ok ".env already exists — keeping your secrets"
+  # Keep the port in .env authoritative, so a re-run on a busy server does
+  # not leave PM2 and nginx disagreeing about where the app lives.
+  if grep -q '^PORT=' .env; then
+    sed -i "s|^PORT=.*|PORT=\"${APP_PORT}\"|" .env
+  else
+    echo "PORT=\"${APP_PORT}\"" >> .env
+  fi
 else
   [ -n "${DB_PASS}" ] || die ".env is missing but the database already exists. Restore .env, or drop the database and re-run."
   cat > .env <<ENV
@@ -125,6 +151,7 @@ CRON_SECRET="$(openssl rand -hex 32)"
 NEXT_PUBLIC_APP_URL="https://${DOMAIN}"
 APP_URL="https://${DOMAIN}"
 DISABLE_REMINDER_FALLBACK="1"
+PORT="${APP_PORT}"
 ENV
   ok ".env written with freshly generated secrets"
 fi
@@ -156,11 +183,11 @@ pm2 save >/dev/null
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 sleep 4
 
-if curl -fsS --max-time 10 "http://127.0.0.1:${APP_PORT}" >/dev/null 2>&1; then
-  ok "app responding on port ${APP_PORT}"
+if curl -fsS --max-time 15 "http://127.0.0.1:${APP_PORT}" 2>/dev/null | grep -qi 'carvyapar'; then
+  ok "CarVyapar responding on port ${APP_PORT}"
 else
   pm2 logs carvyapar --lines 30 --nostream || true
-  die "App did not start. The log above says why."
+  die "CarVyapar is not answering on ${APP_PORT}. The log above says why."
 fi
 
 # ---------------------------------------------------------------- 7. Nginx
