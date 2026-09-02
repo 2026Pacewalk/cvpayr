@@ -167,6 +167,7 @@ model Dealer {
   smsSettings       SmsSettings?
   smsTemplates      SmsTemplate[]
   smsLogs           SmsLog[]
+  smsOptOuts        SmsOptOut[]
   serviceVisits     ServiceVisit[]
   branches          Branch[]
   users             User[]
@@ -951,12 +952,49 @@ model SmsSettings {
    */
   isActive Boolean @default(false)
 
+  /**
+   * Shared secret in the delivery-report webhook URL. Without it, anyone who
+   * guessed a dealer id could mark another dealership's messages delivered.
+   */
+  dlrSecret String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 
   @@map("sms_settings")
+}
+
+/**
+ * Numbers that must not be messaged.
+ * TRAI requires a sender to honour an opt-out, and the penalty for ignoring one
+ * falls on the dealership's own DLT registration. The check runs inside the send
+ * path rather than in a caller, so no future feature can send around it.
+ */
+model SmsOptOut {
+  id       String @id @default(cuid())
+  dealerId String
+
+  /**
+   * Normalised to 91XXXXXXXXXX, matching what the send path uses.
+   */
+  phone String
+
+  /**
+   * manual | reply | dnd | bounce
+   */
+  source String  @default("manual")
+  reason String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([dealerId, phone])
+  @@index([dealerId, createdAt])
+  @@map("sms_opt_outs")
 }
 
 /**
@@ -1017,6 +1055,24 @@ model SmsLog {
    */
   error      String?
 
+  /**
+   * Billable segments. Unicode text costs more than twice as many as GSM-7.
+   */
+  segments Int @default(1)
+
+  /**
+   * What the operator later reported back, which is a different thing from
+   * whether the gateway accepted the message:
+   * queued | delivered | undelivered | expired | rejected
+   * Null means no delivery report has arrived yet.
+   */
+  deliveryStatus String?
+  deliveredAt    DateTime?
+  /**
+   * The operator's own failure code, kept verbatim for support tickets.
+   */
+  failureCode    String?
+
   customerId String?
   leadId     String?
 
@@ -1026,6 +1082,7 @@ model SmsLog {
 
   @@index([dealerId, createdAt])
   @@index([dealerId, status])
+  @@index([providerId])
   @@map("sms_logs")
 }
 

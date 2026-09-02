@@ -3,8 +3,11 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, KeyRound, Send, Trash2, Plus, ShieldCheck } from "lucide-react";
-import { saveSmsSettings, saveSmsTemplate, deleteSmsTemplate, sendTestSms, type SmsActionState } from "@/app/actions/sms";
+import { MessageSquare, KeyRound, Send, Trash2, Plus, ShieldCheck, Webhook, Copy } from "lucide-react";
+import {
+  saveSmsSettings, saveSmsTemplate, deleteSmsTemplate, sendTestSms, rotateDlrSecret,
+  type SmsActionState,
+} from "@/app/actions/sms";
 import { Field, Input, Textarea, Switch, FormGrid, FormSection } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { Button } from "@/components/ui/Button";
@@ -35,6 +38,7 @@ export function SmsSettingsForm({
     senderId: string | null;
     ivrNumber: string | null;
     hasPassword: boolean;
+    dlrUrl: string | null;
   };
   templates: SmsTemplateRow[];
   dealerName: string;
@@ -123,6 +127,8 @@ export function SmsSettingsForm({
 
         <SubmitButton size="lg" pendingLabel="Saving…">Save SMS settings</SubmitButton>
       </form>
+
+      <DeliveryReports dlrUrl={status.dlrUrl} />
 
       <TemplateEditor templates={templates} canTest={status.configured} dealerName={dealerName} />
     </div>
@@ -389,5 +395,88 @@ function TemplateForm({
         )}
       </div>
     </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * The delivery-report webhook.
+ *
+ * Without it, "sent" only ever means the gateway accepted the message — which
+ * is not what a dealer means when they ask whether a customer got it. Give this
+ * URL to SmartPing as the DLR callback and the log starts showing what the
+ * operator actually reported.
+ */
+function DeliveryReports({ dlrUrl }: { dlrUrl: string | null }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, startTransition] = React.useTransition();
+
+  return (
+    <FormSection
+      title="Delivery reports"
+      description="Optional, and worth doing. Until this is set up, the log can only tell you the gateway accepted a message, not that it arrived."
+      icon={<Webhook className="size-4" />}
+    >
+      {dlrUrl ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-ink-200 bg-ink-50 p-3">
+            <code className="min-w-0 flex-1 break-all font-mono text-[12px] text-ink-700">
+              {dlrUrl}
+            </code>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void navigator.clipboard?.writeText(dlrUrl);
+                toast.success("Copied");
+              }}
+            >
+              <Copy className="size-3.5" />
+              Copy
+            </Button>
+          </div>
+          <p className="text-[12.5px] leading-relaxed text-ink-500">
+            Give this to SmartPing as your DLR callback URL. Treat it as a secret — anyone with
+            it can mark your messages delivered.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            loading={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await rotateDlrSecret();
+                toast.success(res.message);
+                router.refresh();
+              })
+            }
+          >
+            Generate a new URL
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <p className="mb-3 text-[13px] text-ink-600">
+            No callback URL yet. Generate one, then give it to SmartPing.
+          </p>
+          <Button
+            loading={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await rotateDlrSecret();
+                toast.success(res.message);
+                router.refresh();
+              })
+            }
+          >
+            <Webhook className="size-4" />
+            Generate the callback URL
+          </Button>
+        </div>
+      )}
+    </FormSection>
   );
 }

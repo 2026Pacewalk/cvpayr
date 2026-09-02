@@ -9,6 +9,7 @@ import {
   DEFAULT_SMS_TEMPLATES,
   type SmsContext,
 } from "@/lib/sms";
+import { randomBytes } from "node:crypto";
 
 /**
  * Sending SMS on a dealership's behalf.
@@ -33,12 +34,16 @@ export type SmsStatus = {
   ivrNumber: string | null;
   /** Whether a password is stored — never the password itself. */
   hasPassword: boolean;
+  /** Where the gateway should POST delivery reports. Null until generated. */
+  dlrUrl: string | null;
 };
 
 /** Safe to hand to a client component. */
 export async function getSmsStatus(dealerId: string): Promise<SmsStatus> {
   const row = await db.smsSettings.findUnique({ where: { dealerId } });
+  const base = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
   return {
+    dlrUrl: row?.dlrSecret ? `${base}/api/sms/dlr/${row.dlrSecret}` : null,
     configured: smsConfigured({
       username: row?.username ?? undefined,
       password: row?.password ?? undefined,
@@ -139,8 +144,14 @@ export async function sendDealerSms(input: SendSmsInput): Promise<SendSmsResult>
         templateKey: input.templateKey ?? null,
         body,
         status,
+        // Dealers are billed per segment, so it is recorded per message rather
+        // than recomputed later from text that may since have been edited.
+        segments: body ? smsSegments(body).segments : 1,
         error: extra.error ?? null,
         providerId: extra.providerId ?? null,
+        // The gateway accepting a message is not delivery; that arrives later
+        // on the webhook, if the operator sends one at all.
+        deliveryStatus: status === "sent" ? "queued" : null,
         customerId: input.customerId ?? null,
         leadId: input.leadId ?? null,
       },
@@ -162,6 +173,22 @@ export async function sendDealerSms(input: SendSmsInput): Promise<SendSmsResult>
   if (!to) {
     const id = await log("failed", input.body ?? "", { error: "Not a valid Indian mobile number" });
     return { status: "failed", message: "That is not a valid Indian mobile number.", logId: id };
+  }
+
+  // Checked here, not in the caller, so no future feature can send around it.
+  const optedOut = await db.smsOptOut.findUnique({
+    where: { dealerId_phone: { dealerId: input.dealerId, phone: to } },
+  });
+  if (optedOut) {
+    const id = await log("skipped", input.body ?? "", {
+      to,
+      error: `Opted out${optedOut.reason ? `: ${optedOut.reason}` : ""}`,
+    });
+    return {
+      status: "skipped",
+      message: "That number has opted out of your messages.",
+      logId: id,
+    };
   }
 
   // Resolve the body, from a template or from the literal text given.
@@ -240,21 +267,108 @@ export async function sendDealerSms(input: SendSmsInput): Promise<SendSmsResult>
 
 /* -------------------------------- HISTORY ------------------------------ */
 
-export async function getSmsLogs(
-  dealerId: string,
-  opts: { take?: number; customerId?: string } = {},
-) {
-  return db.smsLog.findMany({
-    where: { dealerId, ...(opts.customerId ? { customerId: opts.customerId } : {}) },
-    orderBy: { createdAt: "desc" },
-    take: opts.take ?? 50,
-  });
+export type SmsLogFilter = {
+  status?: string;
+  delivery?: string;
+  q?: string;
+  customerId?: string;
+};
+
+function logWhere(dealerId: string, filter: SmsLogFilter) {
+  return {
+    dealerId,
+    ...(filter.customerId ? { customerId: filter.customerId } : {}),
+    ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.delivery === "pending"
+      ? { status: "sent", deliveryStatus: "queued" }
+      : filter.delivery
+        ? { deliveryStatus: filter.delivery }
+        : {}),
+    ...(filter.q
+      ? {
+          OR: [
+            { toNumber: { contains: filter.q.replace(/\D/g, "") || filter.q } },
+            { body: { contains: filter.q } },
+            { templateKey: { contains: filter.q } },
+          ],
+        }
+      : {}),
+  };
 }
 
-export async function getSmsCounts(dealerId: string) {
-  const [sent, failed] = await Promise.all([
-    db.smsLog.count({ where: { dealerId, status: "sent" } }),
-    db.smsLog.count({ where: { dealerId, status: "failed" } }),
+export async function getSmsLogs(
+  dealerId: string,
+  opts: { take?: number; skip?: number; filter?: SmsLogFilter } = {},
+) {
+  const where = logWhere(dealerId, opts.filter ?? {});
+  const [items, total] = await Promise.all([
+    db.smsLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: opts.skip ?? 0,
+      take: opts.take ?? 25,
+    }),
+    db.smsLog.count({ where }),
   ]);
-  return { sent, failed };
+  return { items, total };
+}
+
+/**
+ * What the dealer is actually being billed for.
+ *
+ * Segments, not messages: a single Unicode template can be five segments, and a
+ * dealer comparing this against their gateway invoice needs the number the
+ * gateway charges on.
+ */
+export async function getSmsUsage(dealerId: string) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [allTime, month, delivery, optOuts] = await Promise.all([
+    db.smsLog.groupBy({
+      by: ["status"],
+      where: { dealerId },
+      _count: { _all: true },
+      _sum: { segments: true },
+    }),
+    db.smsLog.aggregate({
+      where: { dealerId, status: "sent", createdAt: { gte: monthStart } },
+      _count: { _all: true },
+      _sum: { segments: true },
+    }),
+    db.smsLog.groupBy({
+      by: ["deliveryStatus"],
+      where: { dealerId, status: "sent" },
+      _count: { _all: true },
+    }),
+    db.smsOptOut.count({ where: { dealerId } }),
+  ]);
+
+  const by = (s: string) => allTime.find((r) => r.status === s);
+  const delivered = delivery.find((d) => d.deliveryStatus === "delivered")?._count._all ?? 0;
+  const reported = delivery
+    .filter((d) => d.deliveryStatus && d.deliveryStatus !== "queued")
+    .reduce((n, d) => n + d._count._all, 0);
+
+  return {
+    sent: by("sent")?._count._all ?? 0,
+    failed: by("failed")?._count._all ?? 0,
+    skipped: by("skipped")?._count._all ?? 0,
+    segmentsAllTime: by("sent")?._sum.segments ?? 0,
+    monthMessages: month._count._all,
+    monthSegments: month._sum.segments ?? 0,
+    delivered,
+    /** Reports actually received, so a delivery rate is never implied from none. */
+    reported,
+    awaitingReport: delivery.find((d) => d.deliveryStatus === "queued")?._count._all ?? 0,
+    optOuts,
+  };
+}
+
+export async function getOptOuts(dealerId: string, take = 50) {
+  return db.smsOptOut.findMany({
+    where: { dealerId },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
 }

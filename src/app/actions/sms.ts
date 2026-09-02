@@ -7,7 +7,8 @@ import { assertCan } from "@/lib/rbac";
 import { PERMISSIONS } from "@/lib/permissions";
 import { audit } from "@/server/events";
 import { sendDealerSms, getSmsStatus } from "@/server/sms";
-import { smsPlaceholders } from "@/lib/sms";
+import { smsPlaceholders, toSmsNumber } from "@/lib/sms";
+import { randomBytes } from "node:crypto";
 
 /**
  * SMS configuration and sending.
@@ -256,4 +257,108 @@ export async function sendCustomerSms(input: {
 export async function currentSmsStatus() {
   const user = await requireDealerUser();
   return getSmsStatus(user.dealerId);
+}
+
+/* ------------------------------ OPT-OUTS ------------------------------ */
+
+/**
+ * Adds a number to the do-not-message register.
+ *
+ * TRAI puts the obligation on the sender, and the penalty falls on the
+ * dealership's own DLT registration, so this is enforced inside the send path
+ * rather than left to whoever writes the next feature.
+ */
+export async function addSmsOptOut(input: { phone: string; reason?: string }) {
+  const user = await requireDealerUser();
+  assertCan(user, PERMISSIONS.SETTINGS_MANAGE);
+
+  const phone = toSmsNumber(input.phone);
+  if (!phone) {
+    return { status: "error" as const, message: "That is not a valid Indian mobile number." };
+  }
+
+  await db.smsOptOut.upsert({
+    where: { dealerId_phone: { dealerId: user.dealerId, phone } },
+    create: {
+      dealerId: user.dealerId,
+      phone,
+      source: "manual",
+      reason: input.reason?.trim() || null,
+      createdById: user.id,
+    },
+    update: { reason: input.reason?.trim() || null },
+  });
+
+  await audit({
+    dealerId: user.dealerId,
+    userId: user.id,
+    action: "create",
+    entity: "sms",
+    summary: `Added ${phone} to the do-not-message list`,
+  });
+
+  revalidatePath("/settings/sms");
+  return { status: "success" as const, message: "Added. They will not be messaged again." };
+}
+
+export async function removeSmsOptOut(id: string) {
+  const user = await requireDealerUser();
+  assertCan(user, PERMISSIONS.SETTINGS_MANAGE);
+
+  const row = await db.smsOptOut.findFirst({
+    where: { id, dealerId: user.dealerId },
+    select: { phone: true },
+  });
+  if (!row) return { status: "error" as const, message: "Not found" };
+
+  await db.smsOptOut.deleteMany({ where: { id, dealerId: user.dealerId } });
+
+  await audit({
+    dealerId: user.dealerId,
+    userId: user.id,
+    action: "delete",
+    entity: "sms",
+    summary: `Removed ${row.phone} from the do-not-message list`,
+  });
+
+  revalidatePath("/settings/sms");
+  return { status: "success" as const, message: "Removed" };
+}
+
+/* --------------------------- DELIVERY REPORTS ------------------------- */
+
+/**
+ * Creates the webhook secret, so the gateway can report delivery.
+ *
+ * Regenerating invalidates the old URL immediately, which is the point when a
+ * secret has been shared by mistake.
+ */
+export async function rotateDlrSecret() {
+  const user = await requireDealerUser();
+  assertCan(user, PERMISSIONS.SETTINGS_MANAGE);
+
+  const secret = randomBytes(24).toString("base64url");
+
+  await db.smsSettings.upsert({
+    where: { dealerId: user.dealerId },
+    create: { dealerId: user.dealerId, dlrSecret: secret },
+    update: { dlrSecret: secret },
+  });
+
+  await audit({
+    dealerId: user.dealerId,
+    userId: user.id,
+    action: "update",
+    entity: "sms",
+    // Records that it changed, never the value.
+    summary: "Regenerated the SMS delivery-report URL",
+  });
+
+  revalidatePath("/settings/sms");
+  return { status: "success" as const, message: "New delivery-report URL generated" };
+}
+
+/** Sends a template to one customer, chosen from this dealership's own list. */
+export async function sendSmsToCustomer(input: { customerId: string; templateKey: string }) {
+  return sendCustomerSms({ customerId: input.customerId, templateKey: input.templateKey });
 }
