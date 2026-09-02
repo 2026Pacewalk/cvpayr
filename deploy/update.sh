@@ -56,13 +56,16 @@ set -a; . ./.env; set +a
 # --accept-data-loss on every deploy, which would let a genuinely destructive
 # change through unnoticed one day, show the warning and stop. Re-run with
 # ACCEPT_DATA_LOSS=1 once you have read it and are content.
-if npx prisma db push --skip-generate >/tmp/carvyapar-db.log 2>&1; then
+# stdin from /dev/null so Prisma never opens an interactive prompt: on a TTY it
+# asks "ignore the warning?", answers no for us, and reports a cancelled push
+# rather than the flag hint — which is not something a deploy script can read.
+if npx prisma db push --skip-generate </dev/null >/tmp/carvyapar-db.log 2>&1; then
   ok "schema applied"
-elif grep -q "accept-data-loss" /tmp/carvyapar-db.log; then
+elif grep -qiE "might be data loss|accept-data-loss|Push cancelled" /tmp/carvyapar-db.log; then
   if [ "${ACCEPT_DATA_LOSS:-}" = "1" ]; then
     warn "proceeding past the data-loss warning because ACCEPT_DATA_LOSS=1"
     grep -A 4 "might be data loss" /tmp/carvyapar-db.log || true
-    npx prisma db push --skip-generate --accept-data-loss >/dev/null
+    npx prisma db push --skip-generate --accept-data-loss </dev/null >/dev/null
     ok "schema applied"
   else
     echo
