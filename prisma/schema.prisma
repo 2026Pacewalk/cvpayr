@@ -164,6 +164,9 @@ model Dealer {
   subscription      Subscription?
   websiteSettings   WebsiteSettings?
   crmSettings       CrmSettings?
+  smsSettings       SmsSettings?
+  smsTemplates      SmsTemplate[]
+  smsLogs           SmsLog[]
   branches          Branch[]
   users             User[]
   roles             Role[]
@@ -825,6 +828,119 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+/**
+ * A dealership's SMS gateway credentials.
+ * One row per dealer, because these are the dealer's own account with their own
+ * DLT-registered sender ID — they cannot live in a shared environment variable.
+ * The password never leaves the server: it is written by the settings form and
+ * read only by the send path. Nothing selects it into a client component, and
+ * the settings screen shows whether one is set rather than what it is.
+ */
+model SmsSettings {
+  id       String @id @default(cuid())
+  dealerId String @unique
+
+  /**
+   * Gateway in use. Only "smartping" is implemented today.
+   */
+  provider String @default("smartping")
+
+  username String?
+  password String?
+
+  /**
+   * DLT-approved sender ID, six characters, e.g. BRKLEY.
+   */
+  senderId String?
+
+  /**
+   * Substituted into a template's {#cbn#} placeholder.
+   */
+  ivrNumber String?
+
+  /**
+   * Sending stays off until this is switched on and credentials exist.
+   */
+  isActive Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@map("sms_settings")
+}
+
+/**
+ * A DLT-registered message. Indian operators reject anything whose text does not
+ * match an approved template exactly, so the body is stored verbatim and only
+ * the registered {#var#} placeholders are substituted.
+ */
+model SmsTemplate {
+  id       String @id @default(cuid())
+  dealerId String
+
+  key  String
+  name String
+  body String
+
+  /**
+   * The DLT template id registered with the operator, for the audit trail.
+   */
+  dltTemplateId String?
+
+  isActive Boolean @default(true)
+  useCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([dealerId, key])
+  @@map("sms_templates")
+}
+
+/**
+ * Every send attempt, successful or not.
+ * Exists so the app can never imply a message went out that did not: a failure
+ * is stored with the gateway's own reason, and the customer timeline reads from
+ * these rows rather than from optimism.
+ */
+model SmsLog {
+  id       String  @id @default(cuid())
+  dealerId String
+  userId   String?
+
+  toNumber    String
+  templateKey String?
+  body        String
+
+  /**
+   * sent | failed | skipped
+   */
+  status     String
+  /**
+   * Gateway message id when it accepted the message.
+   */
+  providerId String?
+  /**
+   * Why it did not go, in the gateway's words.
+   */
+  error      String?
+
+  customerId String?
+  leadId     String?
+
+  createdAt DateTime @default(now())
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@index([dealerId, createdAt])
+  @@index([dealerId, status])
+  @@map("sms_logs")
 }
 
 /**

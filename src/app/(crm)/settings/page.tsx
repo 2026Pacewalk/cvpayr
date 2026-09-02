@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, CreditCard, Globe, ExternalLink, Check, Ticket, MessageCircle, Bell, AlarmClock } from "lucide-react";
+import { Building2, CreditCard, Globe, ExternalLink, Check, Ticket, MessageCircle, Bell, AlarmClock, MessageSquare } from "lucide-react";
 import { requireDealerUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -268,6 +268,29 @@ export default async function SettingsPage() {
             </div>
             <LinkButton href="/settings/thresholds" variant="outline" size="sm">
               Set thresholds
+            </LinkButton>
+          </div>
+        </Card>
+      )}
+
+      {/* SMS shortcut */}
+      {can(user, PERMISSIONS.SETTINGS_MANAGE) && (
+        <Card className="mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 items-center justify-center rounded-[9px] bg-purple-50 text-purple-600">
+                <MessageSquare className="size-[18px]" />
+              </span>
+              <div>
+                <h3 className="text-[14.5px] font-semibold text-ink-900">SMS</h3>
+                <p className="mt-0.5 text-[12.5px] text-ink-500">
+                  Your gateway account, DLT-approved templates, and a log of every message
+                  attempted.
+                </p>
+              </div>
+            </div>
+            <LinkButton href="/settings/sms" variant="outline" size="sm">
+              SMS settings
             </LinkButton>
           </div>
         </Card>

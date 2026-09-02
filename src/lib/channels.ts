@@ -162,6 +162,85 @@ export async function sendWhatsApp(message: WhatsAppMessage): Promise<SendResult
   }
 }
 
+/* ---------------------------------- SMS -------------------------------- */
+
+/**
+ * Credentials belong to the dealership, not the platform, so they are passed in
+ * rather than read from the environment. Each dealer has their own DLT-approved
+ * sender ID and their own gateway account.
+ */
+export type SmsCredentials = {
+  provider: string;
+  username: string;
+  password: string;
+  senderId: string;
+};
+
+export type SmsMessage = {
+  /** Already normalised to 91XXXXXXXXXX by toSmsNumber(). */
+  to: string;
+  /** The final text, with every DLT placeholder resolved. */
+  text: string;
+  /** True when the text contains characters outside GSM-7. */
+  unicode?: boolean;
+};
+
+export function smsConfigured(creds: Partial<SmsCredentials> | null | undefined): boolean {
+  return Boolean(creds?.username && creds?.password && creds?.senderId);
+}
+
+/**
+ * Sends through SmartPing's HTTP API.
+ *
+ * The gateway answers 200 with a body that says whether it accepted the
+ * message, so the status code alone is not enough — a body beginning with
+ * "ERR" or containing "fail" is a rejection and is reported as one rather than
+ * being counted as delivered.
+ */
+export async function sendSms(
+  creds: SmsCredentials,
+  message: SmsMessage,
+): Promise<SendResult> {
+  if (!smsConfigured(creds)) return { sent: false, reason: "not_configured" };
+  if (!/^\d{10,13}$/.test(message.to)) return { sent: false, reason: "invalid_recipient" };
+
+  try {
+    const url = new URL("https://pgapi.smartping.ai/fe/api/v1/send");
+    url.searchParams.set("username", creds.username);
+    url.searchParams.set("password", creds.password);
+    url.searchParams.set("unicode", message.unicode ? "true" : "false");
+    url.searchParams.set("from", creds.senderId);
+    url.searchParams.set("to", message.to);
+    url.searchParams.set("text", message.text);
+
+    const response = await fetch(url, { method: "GET", cache: "no-store" });
+    const body = (await response.text()).trim();
+
+    if (!response.ok) {
+      return {
+        sent: false,
+        reason: "provider_error",
+        detail: `${response.status} ${body}`.slice(0, 300),
+      };
+    }
+
+    // SmartPing returns 200 even when it refuses the message.
+    if (/^err|fail|invalid|insufficient|blocked|reject/i.test(body)) {
+      return { sent: false, reason: "provider_error", detail: body.slice(0, 300) };
+    }
+
+    // A successful response carries a message id; keep it for the audit trail.
+    const id = body.match(/[0-9a-f]{8,}/i)?.[0] ?? body.slice(0, 80);
+    return { sent: true, id };
+  } catch (error) {
+    return {
+      sent: false,
+      reason: "provider_error",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 /** Everything the settings screen needs to describe the current state honestly. */
 export function channelStatus() {
   return {
