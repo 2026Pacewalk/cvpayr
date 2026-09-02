@@ -51,8 +51,36 @@ ok "installed"
 
 say "Database"
 set -a; . ./.env; set +a
-npx prisma db push --skip-generate >/dev/null
-ok "schema applied"
+
+# Prisma refuses a change it considers destructive. Rather than passing
+# --accept-data-loss on every deploy, which would let a genuinely destructive
+# change through unnoticed one day, show the warning and stop. Re-run with
+# ACCEPT_DATA_LOSS=1 once you have read it and are content.
+if npx prisma db push --skip-generate >/tmp/carvyapar-db.log 2>&1; then
+  ok "schema applied"
+elif grep -q "accept-data-loss" /tmp/carvyapar-db.log; then
+  if [ "${ACCEPT_DATA_LOSS:-}" = "1" ]; then
+    warn "proceeding past the data-loss warning because ACCEPT_DATA_LOSS=1"
+    grep -A 4 "might be data loss" /tmp/carvyapar-db.log || true
+    npx prisma db push --skip-generate --accept-data-loss >/dev/null
+    ok "schema applied"
+  else
+    echo
+    grep -A 6 "might be data loss" /tmp/carvyapar-db.log || cat /tmp/carvyapar-db.log
+    echo
+    warn "The site is untouched and still serving the previous version."
+    die "Read the warning above. If it is safe, re-run with: ACCEPT_DATA_LOSS=1 sudo -E bash deploy/update.sh"
+  fi
+else
+  tail -20 /tmp/carvyapar-db.log
+  die "Schema update failed. The previous version is still running."
+fi
+
+# The delivery-report webhook URL is built from this.
+if ! grep -q '^APP_URL=' .env; then
+  warn "APP_URL is not set in .env — the SMS delivery-report URL will render without a domain."
+  warn "Add:  APP_URL=\"https://carvyapar.in\""
+fi
 
 npx prisma generate >/dev/null 2>&1 || true
 
