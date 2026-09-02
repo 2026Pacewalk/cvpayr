@@ -47,6 +47,19 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     unreadCount({ dealerId: user.dealerId, userId: user.id, branchIds: user.branchIds }),
   ]);
 
+  // Cars currently in the workshop, for the sidebar badge.
+  const serviceOpen = can(user, PERMISSIONS.SERVICE_VIEW)
+    ? await db.serviceVisit.count({
+        where: {
+          dealerId: user.dealerId,
+          status: { in: ["open", "in_progress", "ready"] },
+          ...(user.branchIds.length
+            ? { OR: [{ branchId: { in: user.branchIds } }, { branchId: null }] }
+            : {}),
+        },
+      })
+    : 0;
+
   // Unresolved work, for the sidebar badge. Same engine the action centre uses,
   // so the number in the nav can never disagree with the page it links to.
   const attention = await getAttention(attentionScope(user));
@@ -94,6 +107,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       : []),
     ...(can(user, PERMISSIONS.SALES_VIEW)
       ? ([{ key: "sales", href: "/sales", label: "Bookings & Sales", group: "sales" }] as NavItem[])
+      : []),
+    ...(can(user, PERMISSIONS.SERVICE_VIEW)
+      ? ([
+          { key: "service", href: "/service", label: "Service", badge: serviceOpen, group: "sales" },
+        ] as NavItem[])
       : []),
 
     ...(can(user, PERMISSIONS.REPORTS_VIEW)

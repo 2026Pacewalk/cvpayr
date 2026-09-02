@@ -167,6 +167,7 @@ model Dealer {
   smsSettings       SmsSettings?
   smsTemplates      SmsTemplate[]
   smsLogs           SmsLog[]
+  serviceVisits     ServiceVisit[]
   branches          Branch[]
   users             User[]
   roles             Role[]
@@ -248,6 +249,7 @@ model Branch {
   members       UserBranch[]
   requirements  CustomerRequirement[]
   notifications Notification[]
+  serviceVisits ServiceVisit[]
 
   @@unique([dealerId, code])
   @@index([dealerId, isActive])
@@ -314,6 +316,7 @@ model User {
 
   notificationPreference NotificationPreference?
   actionDismissals       ActionDismissal[]
+  serviceVisits          ServiceVisit[]          @relation("ServiceAdvisor")
 
   @@index([dealerId, isActive])
   @@map("users")
@@ -404,13 +407,14 @@ model Vehicle {
   branch    Branch @relation(fields: [branchId], references: [id])
   createdBy User?  @relation("VehicleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  images       VehicleImage[]
-  leads        Lead[]
-  testDrives   TestDrive[]
-  bookings     Booking[]
-  sales        Sale[]
-  catalogItems SharedCatalogItem[]
-  transfers    BranchTransfer[]
+  images        VehicleImage[]
+  leads         Lead[]
+  testDrives    TestDrive[]
+  bookings      Booking[]
+  sales         Sale[]
+  catalogItems  SharedCatalogItem[]
+  transfers     BranchTransfer[]
+  serviceVisits ServiceVisit[]
 
   @@unique([dealerId, stockId])
   @@index([dealerId, status])
@@ -467,12 +471,13 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  dealer       Dealer                @relation(fields: [dealerId], references: [id], onDelete: Cascade)
-  leads        Lead[]
-  testDrives   TestDrive[]
-  bookings     Booking[]
-  sales        Sale[]
-  requirements CustomerRequirement[]
+  dealer        Dealer                @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+  testDrives    TestDrive[]
+  bookings      Booking[]
+  sales         Sale[]
+  requirements  CustomerRequirement[]
+  serviceVisits ServiceVisit[]
 
   @@unique([dealerId, phone]) // dedupe key
   @@index([dealerId, name])
@@ -828,6 +833,87 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+/**
+ * A workshop job card.
+ * Distinct from a Sale: the car usually belongs to the customer already and is
+ * not in inventory, so the registration and model are recorded on the visit
+ * itself rather than pointing at a Vehicle row.
+ * Closing one is what triggers the feedback SMS, and `feedbackSmsAt` is what
+ * stops a reopened-and-reclosed visit messaging the same customer twice.
+ */
+model ServiceVisit {
+  id       String  @id @default(cuid())
+  dealerId String
+  branchId String?
+
+  customerId String
+
+  /**
+   * The customer's own car. Optional link when it is a car they bought here.
+   */
+  vehicleId          String?
+  registrationNumber String?
+  make               String?
+  model              String?
+  odometerKm         Int?
+
+  /**
+   * The dealership's own job card number, printed on the customer's copy.
+   */
+  jobCardNumber String?
+
+  /**
+   * periodic | repair | bodyshop | warranty | accessories | other
+   */
+  serviceType String @default("periodic")
+
+  /**
+   * open | in_progress | ready | closed | cancelled
+   */
+  status String @default("open")
+
+  /**
+   * What the customer reported, in their words.
+   */
+  complaint String?
+  workDone  String?
+
+  /**
+   * Invoice total in rupees.
+   */
+  amount Int?
+
+  openedAt   DateTime  @default(now())
+  promisedAt DateTime?
+  closedAt   DateTime?
+
+  /**
+   * The service advisor looking after it.
+   */
+  assignedToId String?
+
+  /**
+   * Set the moment the feedback SMS is accepted by the gateway.
+   */
+  feedbackSmsAt    DateTime?
+  feedbackSmsLogId String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dealer     Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  assignedTo User?    @relation("ServiceAdvisor", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, status])
+  @@index([dealerId, openedAt])
+  @@map("service_visits")
 }
 
 /**

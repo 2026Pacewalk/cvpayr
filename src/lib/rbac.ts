@@ -1,9 +1,20 @@
 import type { SessionUser } from "./auth";
 import { PERMISSIONS, type PermissionKey } from "./permissions";
 
+/**
+ * A role holding "*" holds every permission, now and in future.
+ *
+ * This exists for the Dealer Owner. Without it, every permission added to the
+ * product later has to be granted retroactively to every existing owner role in
+ * every tenant — and until someone remembers, owners quietly lose access to new
+ * parts of their own CRM.
+ */
+export const WILDCARD_PERMISSION = "*";
+
 /** Does this principal hold the permission? Super admins hold everything. */
 export function can(user: Pick<SessionUser, "permissions" | "isSuperAdmin">, permission: PermissionKey): boolean {
   if (user.isSuperAdmin) return true;
+  if ((user.permissions as string[]).includes(WILDCARD_PERMISSION)) return true;
   return user.permissions.includes(permission);
 }
 

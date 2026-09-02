@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Car, Building2, Users, UserSquare2, CalendarClock, Handshake,
   BarChart3, Settings, Bell, Menu, X, Search, LogOut, Globe, ShieldCheck, Zap,
-  KanbanSquare, ChevronDown, PlusCircle, ScrollText, Target, Flame,
+  KanbanSquare, ChevronDown, PlusCircle, ScrollText, Target, Flame, Wrench,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { Avatar } from "@/components/ui/primitives";
@@ -26,6 +26,7 @@ const ICONS = {
   testDrives: UserSquare2,
   requirements: Target,
   sales: Handshake,
+  service: Wrench,
   staff: Users,
   reports: BarChart3,
   settings: Settings,

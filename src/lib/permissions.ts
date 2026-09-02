@@ -31,6 +31,10 @@ export const PERMISSIONS = {
   SALES_VIEW: "sales.view",
   SALES_MANAGE: "sales.manage",
 
+  // Service (workshop job cards)
+  SERVICE_VIEW: "service.view",
+  SERVICE_MANAGE: "service.manage",
+
   // Org
   BRANCHES_VIEW: "branches.view",
   BRANCHES_MANAGE: "branches.manage",
@@ -104,6 +108,18 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
+    group: "Service",
+    description: "Workshop job cards and the feedback SMS sent when one closes",
+    items: [
+      { key: PERMISSIONS.SERVICE_VIEW, label: "View service visits" },
+      {
+        key: PERMISSIONS.SERVICE_MANAGE,
+        label: "Open and close service visits",
+        hint: "Closing a visit sends the customer your feedback SMS",
+      },
+    ],
+  },
+  {
     group: "Organisation",
     description: "Branches, staff and access control",
     items: [
@@ -161,6 +177,7 @@ export const ROLE_TEMPLATES: {
       P.LEADS_VIEW, P.LEADS_VIEW_ALL, P.LEADS_MANAGE, P.LEADS_ASSIGN,
       P.CUSTOMERS_VIEW, P.CUSTOMERS_MANAGE, P.CATALOG_SHARE,
       P.SALES_VIEW, P.SALES_MANAGE,
+      P.SERVICE_VIEW, P.SERVICE_MANAGE,
       P.BRANCHES_VIEW, P.STAFF_VIEW,
       P.REPORTS_VIEW, P.REPORTS_EXPORT, P.SETTINGS_VIEW,
     ],
