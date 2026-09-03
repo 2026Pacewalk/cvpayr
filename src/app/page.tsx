@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { LinkButton } from "@/components/ui/Button";
@@ -10,8 +11,8 @@ import { faqSchema, siteUrl, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 import { formatPrice, safeJsonParse } from "@/lib/utils";
 import { YEARLY_DISCOUNT_PERCENT } from "@/lib/billing";
 import {
-  Gauge, Car, Building2, Users, LineChart, MessageSquare, ArrowRight, ShieldCheck,
-  Smartphone, Share2, Globe, KanbanSquare, Timer, IndianRupee, Check, Zap, Lock,
+  Gauge, Car, Building2, Users, MessageSquare, ArrowRight, ShieldCheck,
+  Smartphone, Share2, Timer, IndianRupee, Check, Zap, Lock,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 const SURFACES = [
   {
     tag: "For your customers",
-    icon: Globe,
+    shot: "/screenshots/showroom.webp",
+    shotUrl: "carvyapar.in/d/sharma-auto",
+    shotAlt:
+      "A dealer showroom home page: the dealership's own branding and navigation, a hero reading “Find your next car, without the guesswork”, a brand, budget, fuel and showroom search bar, and counters for 19 cars in stock across 3 showrooms.",
     title: "A showroom that sells while you sleep",
     body: "Your own branded website with every car from every branch. Advanced filters, EMI estimates, WhatsApp on every listing, and SEO-friendly pages built to rank.",
     points: ["Branded to your dealership", "Search, filter, compare, shortlist", "One-tap WhatsApp and call"],
@@ -35,7 +39,10 @@ const SURFACES = [
   },
   {
     tag: "For your team",
-    icon: KanbanSquare,
+    shot: "/screenshots/pipeline.webp",
+    shotUrl: "carvyapar.in/leads/pipeline",
+    shotAlt:
+      "The CRM lead pipeline: 17 active leads on a kanban board across New, Contacted, Interested and Follow-up columns, each card showing the customer, the vehicle they asked about, the asking price, the branch, the assigned executive and the follow-up date.",
     title: "A CRM that fits how cars actually sell",
     body: "Every enquiry lands as a lead with the vehicle, branch and source attached. Drag it through the pipeline, log the call, book the test drive, close the deal.",
     points: ["Kanban pipeline and table view", "Follow-ups that chase you back", "Booking to sale in two taps"],
@@ -44,7 +51,10 @@ const SURFACES = [
   },
   {
     tag: "For you",
-    icon: LineChart,
+    shot: "/screenshots/reports.webp",
+    shotUrl: "carvyapar.in/reports",
+    shotAlt:
+      "The reports screen over the last 90 days: vehicles sold, revenue, gross profit and lead conversion, above an operations panel showing median first reply time, share of enquiries answered within 30 minutes, follow-ups done on time and median days to sell.",
     title: "The numbers that decide what to buy next",
     body: "Ageing stock, branch performance, executive conversion and true margin — with cost and profit hidden from everyone you have not explicitly trusted.",
     points: ["Inventory ageing by branch", "Margin gated by permission", "Export anything to CSV"],
@@ -258,10 +268,25 @@ export default async function PlatformHome() {
                 </Link>
               </div>
 
-              <div className="flex items-center justify-center">
-                <div className="flex aspect-[4/3] w-full items-center justify-center rounded-[16px] border border-ink-200 bg-white shadow-sm">
-                  <s.icon className="size-20 text-ink-200" strokeWidth={1.1} />
+              {/* A real screenshot of the surface being described, framed as a
+                  browser window. The path in the chrome bar is the actual route
+                  the shot was taken from — scripts/capture-screenshots.mjs
+                  regenerates all three against the seed dealership. */}
+              <div className="overflow-hidden rounded-[14px] border border-ink-200 bg-white shadow-[0_18px_44px_-26px_rgba(16,24,40,0.45)]">
+                <div className="flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/80 px-3.5 py-2.5">
+                  <span className="size-[7px] rounded-full bg-ink-300/70" />
+                  <span className="size-[7px] rounded-full bg-ink-300/70" />
+                  <span className="size-[7px] rounded-full bg-ink-300/70" />
+                  <span className="ml-2 truncate text-[10.5px] text-ink-400">{s.shotUrl}</span>
                 </div>
+                <Image
+                  src={s.shot}
+                  alt={s.shotAlt}
+                  width={1440}
+                  height={900}
+                  sizes="(min-width: 1024px) 46vw, 92vw"
+                  className="aspect-[16/10] w-full object-cover object-top"
+                />
               </div>
             </div>
           ))}

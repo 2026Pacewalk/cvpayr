@@ -162,12 +162,22 @@ export function faqSchema(items: { question: string; answer: string }[]): Json {
   };
 }
 
-/** Wraps one or more nodes in a single @graph so a page emits one script tag. */
+/**
+ * Wraps one or more nodes in a single @graph so a page emits one script tag.
+ *
+ * The `<` escaping is load-bearing, not cosmetic. This string is injected with
+ * dangerouslySetInnerHTML, and almost everything in the graph is dealer-entered
+ * text: dealership name, tagline, about, branch names, vehicle descriptions. An
+ * HTML parser ends a <script> block at the first literal `</script`, wherever it
+ * appears — so a dealer who typed that into their own About field would break
+ * out of the JSON-LD and run script on this origin, which is the same origin as
+ * the CRM. `<` is a valid JSON escape, so parsers see identical data.
+ */
 export function graph(...nodes: (Json | null | undefined)[]): string {
   return JSON.stringify({
     "@context": "https://schema.org",
     "@graph": nodes.filter(Boolean),
-  });
+  }).replace(/</g, "\\u003c");
 }
 
 /* ------------------------------ AUTO DEALER ---------------------------- */

@@ -240,38 +240,55 @@ export function MobileMenuItem({
   );
 }
 
-/** Hamburger that morphs into an X, matched to the dark overlay. */
+/** The nine-dot mark. Drawn rather than imported so it inherits currentColor. */
+function DotGrid() {
+  return (
+    <span aria-hidden className="grid grid-cols-3 gap-[3.2px]">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <span key={i} className="size-[3.4px] rounded-full bg-current" />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The menu button: a mark and the word, not three lines.
+ *
+ * The hamburger is a convention among people who use a lot of software. A
+ * used-car buyer opening a dealership's site on their phone is not reliably one
+ * of them, so the word carries the meaning and the mark carries the recognition.
+ * The label also makes the target roughly twice the width of a 40px icon square,
+ * which matters more on a phone than the pixels it costs.
+ */
 export function MobileMenuTrigger({
   open,
   onToggle,
   className,
   tone = "light",
+  label = "Menu",
 }: {
   open: boolean;
   onToggle: () => void;
   className?: string;
-  /** `light` = white bars for dark headers, `dark` = ink bars for white headers. */
+  /** `light` = for dark headers, `dark` = for white headers. */
   tone?: "light" | "dark";
+  label?: string;
 }) {
-  const bar = cn(
-    "absolute left-1/2 h-[1.5px] w-[18px] -translate-x-1/2 rounded-full transition-all duration-300",
-    tone === "light" ? "bg-white" : "bg-ink-800",
-  );
-
   return (
     <button
       onClick={onToggle}
       aria-label={open ? "Close menu" : "Open menu"}
       aria-expanded={open}
       className={cn(
-        "relative flex size-10 items-center justify-center rounded-[10px] transition-colors",
-        tone === "light" ? "active:bg-white/10" : "active:bg-ink-100",
+        "inline-flex h-10 shrink-0 items-center gap-2 rounded-[10px] border px-3 text-[13.5px] font-semibold tracking-tight transition-colors",
+        tone === "light"
+          ? "border-white/20 bg-white/10 text-white active:bg-white/20"
+          : "border-ink-200 bg-white text-ink-800 active:bg-ink-100",
         className,
       )}
     >
-      <span className={cn(bar, open ? "top-1/2 rotate-45" : "top-[15px]")} />
-      <span className={cn(bar, "top-1/2", open ? "scale-x-0 opacity-0" : "opacity-100")} />
-      <span className={cn(bar, open ? "top-1/2 -rotate-45" : "top-[23px]")} />
+      {open ? <X className="size-4" /> : <DotGrid />}
+      {open ? "Close" : label}
     </button>
   );
 }

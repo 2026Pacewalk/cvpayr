@@ -43,7 +43,7 @@ export function MarketingNav() {
         )}
       >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-[10px] transition-colors",
@@ -54,7 +54,7 @@ export function MarketingNav() {
           </span>
           <span
             className={cn(
-              "font-display text-[16.5px] font-semibold tracking-tight transition-colors",
+              "truncate font-display text-[16.5px] font-semibold tracking-tight transition-colors",
               scrolled ? "text-ink-950" : "text-white",
             )}
           >
@@ -94,12 +94,15 @@ export function MarketingNav() {
           <Link
             href="/login"
             className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-[9px] px-4 text-[13.5px] font-medium transition-colors",
+              "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] px-3.5 text-[13.5px] font-medium whitespace-nowrap transition-colors sm:px-4",
               scrolled ? "bg-ink-900 text-white hover:bg-ink-800" : "bg-white text-ink-950 hover:bg-white/90",
             )}
           >
             Sign in
-            <ArrowRight className="size-3.5" />
+            {/* The arrow is the first thing to go: on a 375px header it costs
+                about twenty pixels, which is the difference between the wordmark
+                reading "CarVyapar.in" and reading "CarVyapar…". */}
+            <ArrowRight className="hidden size-3.5 sm:block" />
           </Link>
           <MobileMenuTrigger
             open={open}
