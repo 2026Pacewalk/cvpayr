@@ -237,6 +237,17 @@
     border-color: var(--tpl-accent);
   }
 
+  /*
+   * The showroom footer sits on near-black, and a dealer's accent is an
+   * arbitrary hex — Sharma Auto's is #1f3a5f, which is invisible there. Mixing
+   * it toward white keeps the dealership's colour recognisable and readable
+   * whatever they chose.
+   */
+  .showroom-footer {
+    --footer-accent: #94b4ff;
+    --footer-accent: color-mix(in oklab, var(--tpl-accent, #4566f1) 62%, white);
+  }
+
   /* Safe-area padding for sticky mobile action bars */
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
