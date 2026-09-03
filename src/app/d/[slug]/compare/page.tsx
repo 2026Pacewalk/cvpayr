@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { getDealerBySlug } from "@/server/dealer";
 import { CompareClient } from "./CompareClient";
 
-export const metadata: Metadata = { title: "Compare cars" };
+// Built entirely from choices saved in this visitor's own browser, so there is
+// nothing here to index — only a URL that would compete with the listing pages
+// that do have content.
+export const metadata: Metadata = { title: "Compare cars", robots: NOINDEX };
 
 export default async function ComparePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

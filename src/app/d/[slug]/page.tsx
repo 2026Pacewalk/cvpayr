@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -6,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   getDealerBySlug, getDealerStats, getPublishedTestimonials,
-  getPopularBrands, getBodyTypeCounts, dealerWhyChooseUs,
+  getPopularBrands, getBodyTypeCounts, dealerWhyChooseUs, dealerWorkingHours,
 } from "@/server/dealer";
 import { listVehicles, vehicleFacets } from "@/server/inventory";
 import { PublicVehicleCard } from "@/components/VehicleCard";
@@ -15,6 +16,10 @@ import { EmptyState } from "@/components/ui/primitives";
 import { PRICE_BUCKETS } from "@/lib/constants";
 import { resolveTemplate, type TemplateDefinition } from "@/lib/templates";
 import { formatPrice, whatsappHref, telHref, vehicleSlug, cn } from "@/lib/utils";
+import { ShowroomFaq } from "@/components/public/ShowroomFaq";
+import { JsonLd } from "@/components/JsonLd";
+import { showroomFaq } from "@/lib/faq";
+import { faqSchema } from "@/lib/seo";
 
 const ICONS: Record<string, typeof ShieldCheck> = {
   shield: ShieldCheck,
@@ -22,6 +27,34 @@ const ICONS: Record<string, typeof ShieldCheck> = {
   wallet: Wallet,
   repeat: Repeat,
 };
+
+/**
+ * The canonical is set here rather than in the layout: metadata inherits down,
+ * so a canonical on the layout would point every page of the showroom — cars,
+ * about, contact — back at the home page and collapse them out of the index.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { alternates: { canonical: `/d/${slug}` } };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+
+  return {
+    // absolute, so the root layout's "%s · CarVyapar" template does not brand
+    // a dealer's own storefront with the platform's name.
+    title: {
+      absolute:
+        dealer.websiteSettings?.metaTitle ??
+        `${dealer.name} — Used Cars${city ? ` in ${city}` : ""}`,
+    },
+    alternates: { canonical: `/d/${slug}` },
+  };
+}
 
 export default async function DealerHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -46,8 +79,17 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
   const template = resolveTemplate(settings?.template);
   const heroCars = featured.items.length >= 4 ? featured.items : recent.items;
 
+  // Answered from this dealership's own record, so a question only appears when
+  // the data behind it does.
+  const faq = showroomFaq(
+    { ...dealer, websiteSettings: settings ?? null },
+    { hours: dealerWorkingHours(dealer), stock: stats.available, brands, since: stats.since },
+  );
+
   return (
     <>
+      <JsonLd nodes={[faqSchema(faq)]} />
+
       <ShowroomHero
         template={template}
         base={base}
@@ -306,6 +348,8 @@ export default async function DealerHome({ params }: { params: Promise<{ slug: s
           </div>
         </section>
       )}
+
+      <ShowroomFaq items={faq} template={template} />
 
       {/* ────────────────────────── CTA BAND ──────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">

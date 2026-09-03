@@ -7,10 +7,25 @@ import { EnquiryForm } from "@/components/public/EnquiryForm";
 import { EMICalculator } from "@/components/public/VehicleActions";
 import { Card } from "@/components/ui/primitives";
 
-export const metadata: Metadata = {
-  title: "Car finance",
-  description: "Get pre-owned car finance approved quickly with our lending partners.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "Finance" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+
+  return {
+    title: `Used Car Loan & Finance${where}`,
+    description: `Arrange finance on a pre-owned car from ${dealer.name}${where}. Tell us what you are looking at and we will come back with the loan options you are likely to be approved for.`,
+    alternates: { canonical: `/d/${slug}/finance` },
+  };
+}
+
 
 const STEPS = [
   { icon: FileCheck2, title: "Share your documents", body: "PAN, Aadhaar, three months of bank statements and salary slips or ITR." },

@@ -6,7 +6,27 @@ import { getDealerBySlug, getDealerStats, dealerWhyChooseUs, dealerWorkingHours 
 import { Card } from "@/components/ui/primitives";
 import { VehicleImage } from "@/components/VehicleImage";
 
-export const metadata: Metadata = { title: "About us" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "About" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+
+  return {
+    title: `About ${dealer.name}`,
+    description:
+      dealer.about?.slice(0, 155) ??
+      `Who we are, how we inspect and price our cars, and why buyers${where} keep coming back to ${dealer.name}.`,
+    alternates: { canonical: `/d/${slug}/about` },
+  };
+}
+
 
 const ICONS: Record<string, typeof ShieldCheck> = {
   shield: ShieldCheck,

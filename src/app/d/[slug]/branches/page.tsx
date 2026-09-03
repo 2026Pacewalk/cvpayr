@@ -8,10 +8,34 @@ import { VehicleImage } from "@/components/VehicleImage";
 import { Card } from "@/components/ui/primitives";
 import { whatsappHref, telHref } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  title: "Our showrooms",
-  description: "Visit any of our showrooms for a test drive.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "Showrooms" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+  const all = [...new Set(dealer.branches.map((b) => b.city).filter(Boolean))];
+  // Read as a list up to three cities; past that a title is truncated in
+  // results anyway, so it names the two biggest and counts the rest.
+  const cities =
+    all.length <= 1
+      ? (all[0] ?? "")
+      : all.length <= 3
+        ? `${all.slice(0, -1).join(", ")} & ${all[all.length - 1]}`
+        : `${all.slice(0, 2).join(", ")} & ${all.length - 2} more`;
+
+  return {
+    title: cities ? `Used Car Showrooms in ${cities}` : "Our showrooms",
+    description: `Visit ${dealer.name} at ${dealer.branches.length} showroom${dealer.branches.length === 1 ? "" : "s"}${all.length ? ` across ${all.join(", ")}` : ""}. Addresses, directions, phone numbers and opening hours for each location.`,
+    alternates: { canonical: `/d/${slug}/branches` },
+  };
+}
+
 
 export default async function BranchesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

@@ -6,7 +6,25 @@ import { EnquiryForm } from "@/components/public/EnquiryForm";
 import { Card } from "@/components/ui/primitives";
 import { whatsappHref, telHref } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Contact us" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "Contact" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+
+  return {
+    title: `Contact ${dealer.name}${where}`,
+    description: `Call, WhatsApp or visit ${dealer.name}${where}. Showroom addresses, phone numbers and opening hours for all ${dealer.branches.length} location${dealer.branches.length === 1 ? "" : "s"}.`,
+    alternates: { canonical: `/d/${slug}/contact` },
+  };
+}
+
 
 export default async function ContactPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

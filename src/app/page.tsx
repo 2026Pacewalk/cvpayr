@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { LinkButton } from "@/components/ui/Button";
 import { PricingTable, type PricingPlan } from "@/components/marketing/PricingTable";
 import { MarketingNav, MarketingFAQ } from "@/components/marketing/MarketingChrome";
+import { FAQS } from "@/lib/marketing-faq";
+import { JsonLd } from "@/components/JsonLd";
+import { faqSchema, siteUrl, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 import { formatPrice, safeJsonParse } from "@/lib/utils";
 import { YEARLY_DISCOUNT_PERCENT } from "@/lib/billing";
 import {
@@ -17,6 +20,7 @@ export const metadata: Metadata = {
   title: "CarVyapar.in — Digital showroom & CRM for used car dealers",
   description:
     "Give every branch a shared inventory, every customer a beautiful showroom, and your team a pipeline where no enquiry goes missing.",
+  alternates: { canonical: "/" },
 };
 
 const SURFACES = [
@@ -105,6 +109,31 @@ export default async function PlatformHome() {
 
   return (
     <div className="bg-white">
+      <JsonLd
+        nodes={[
+          faqSchema(FAQS.map((f) => ({ question: f.q, answer: f.a }))),
+          {
+            "@type": "SoftwareApplication",
+            name: SITE_NAME,
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            url: siteUrl(),
+            description: SITE_TAGLINE,
+            provider: { "@id": `${siteUrl()}/#organization` },
+            // Priced from the plans this page actually renders below, so the
+            // markup cannot advertise a number the pricing table does not show.
+            offers: pricingPlans.map((plan) => ({
+              "@type": "Offer",
+              name: plan.name,
+              description: plan.description ?? undefined,
+              price: plan.priceMonthly,
+              priceCurrency: "INR",
+              category: "monthly subscription",
+            })),
+          },
+        ]}
+      />
+
       <MarketingNav />
 
       {/* ───────────────────────────── HERO ─────────────────────────────

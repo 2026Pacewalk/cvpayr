@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { requireDealerUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -8,6 +9,11 @@ import { unreadCount, inboxWhere } from "@/server/notifications";
 import { getAttention, attentionScope } from "@/server/attention";
 import { safeJsonParse } from "@/lib/utils";
 import { startOfDay } from "@/lib/utils";
+
+// Behind a login and disallowed in robots.txt already. This is the third lock:
+// nothing in here should ever reach an index, whichever of the other two fails.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const user = await requireDealerUser();

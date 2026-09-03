@@ -13,11 +13,56 @@ import {
 } from "@/components/public/CarFilters";
 import { SORT_OPTIONS } from "@/lib/constants";
 import { vehicleSlug } from "@/lib/utils";
+import { JsonLd } from "@/components/JsonLd";
+import {
+  breadcrumbSchema, canonicalFacetQuery, shouldIndexFacets, NOINDEX,
+} from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Cars in stock",
-  description: "Browse the full pre-owned inventory across all showrooms.",
-};
+/** The first value of a param that may arrive repeated. */
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/**
+ * Names the page after what is actually being shown.
+ *
+ * "Used Maruti Cars in Ludhiana" is a search people make; "Cars in stock" is
+ * not. The city comes from the dealership rather than the query because that is
+ * the intent behind almost every used-car search in India.
+ */
+function listingSubject(sp: Record<string, string | string[] | undefined>): string {
+  // Ordered the way the phrase reads: "Maruti Swift", "Maruti Petrol",
+  // "Petrol Hatchback". Every facet that can be indexed appears, so no two
+  // indexable URLs end up sharing a title and competing with each other.
+  return [one(sp.make), one(sp.model), one(sp.fuel), one(sp.bodyType)]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  const [{ slug }, sp] = await Promise.all([params, searchParams]);
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "Cars in stock" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+  const subject = listingSubject(sp);
+  const title = subject ? `Used ${subject} Cars${where}` : `Used Cars${where}`;
+
+  return {
+    title,
+    description: `${title} at ${dealer.name}. Every listing shows real photos, exact kilometres, ownership history and verified paperwork. Book a test drive or ask for an on-road price.`,
+    // Canonical is rebuilt from the indexable facets only, so a URL carrying a
+    // sort order or a search term consolidates into the plain listing instead
+    // of competing with it.
+    alternates: { canonical: `/d/${slug}/cars${canonicalFacetQuery(sp)}` },
+    robots: shouldIndexFacets(sp) ? undefined : NOINDEX,
+  };
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -47,11 +92,24 @@ export default async function CarsPage({
     Object.entries(sp).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   ) as Record<string, string | undefined>;
 
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const subject = listingSubject(sp);
+  const heading = `Used ${subject ? `${subject} ` : ""}Cars${city ? ` in ${city}` : ""}`;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+      <JsonLd
+        nodes={[
+          breadcrumbSchema([
+            { name: dealer.name, url: base },
+            { name: "Cars", url: `${base}/cars` },
+          ]),
+        ]}
+      />
+
       <header className="mb-6">
         <h1 className="font-display text-[26px] leading-tight font-semibold text-ink-950 sm:text-[32px]">
-          {filters.make ? `${filters.make} cars` : "Cars in stock"}
+          {heading}
         </h1>
         <p className="mt-1.5 text-[14px] text-ink-500">
           {result.total} vehicle{result.total === 1 ? "" : "s"} across {dealer.branches.length}{" "}

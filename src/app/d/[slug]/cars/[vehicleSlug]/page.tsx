@@ -24,6 +24,8 @@ import { FavouriteButton, CompareButton } from "@/components/FavouriteButton";
 import { VehicleRowCard } from "@/components/VehicleCard";
 import { Badge, Card, DataList } from "@/components/ui/primitives";
 import { TrackView } from "@/components/public/TrackView";
+import { JsonLd } from "@/components/JsonLd";
+import { absoluteUrl, breadcrumbSchema, compact } from "@/lib/seo";
 
 type Props = { params: Promise<{ slug: string; vehicleSlug: string }> };
 
@@ -89,40 +91,63 @@ export default async function VehicleDetailPage({ params }: Props) {
 
   const daysListed = daysBetween(vehicle.listedAt ?? vehicle.createdAt);
 
-  // Structured data helps this page surface as a rich result.
-  const jsonLd = {
-    "@context": "https://schema.org",
+  // Structured data helps this page surface as a rich result. The seller is a
+  // reference rather than a copy: the full AutoDealer node is emitted once by
+  // the showroom layout, and pointing at its @id keeps the two from drifting.
+  const dealerId = `${absoluteUrl(base)}#dealer`;
+
+  const vehicleLd = compact({
     "@type": "Car",
+    "@id": `${absoluteUrl(canonical)}#car`,
     name: title,
+    url: absoluteUrl(canonical),
+    sku: vehicle.stockId,
     brand: { "@type": "Brand", name: vehicle.make },
     model: vehicle.model,
     vehicleConfiguration: vehicle.variant ?? undefined,
+    vehicleModelDate: String(vehicle.year),
     productionDate: String(vehicle.year),
     color: vehicle.colour ?? undefined,
     fuelType: vehicle.fuelType,
     vehicleTransmission: vehicle.transmission,
     bodyType: vehicle.bodyType,
-    mileageFromOdometer: { "@type": "QuantitativeValue", value: vehicle.kmDriven, unitCode: "KMT" },
+    itemCondition: "https://schema.org/UsedCondition",
+    mileageFromOdometer: {
+      "@type": "QuantitativeValue",
+      value: vehicle.kmDriven,
+      unitCode: "KMT",
+    },
     numberOfPreviousOwners: vehicle.ownership,
-    image: vehicle.images.filter((i) => i.kind === "photo").map((i) => i.url),
+    image: vehicle.images.filter((i) => i.kind === "photo").map((i) => absoluteUrl(i.url)),
     description: vehicle.description ?? undefined,
-    offers: {
+    offers: compact({
       "@type": "Offer",
+      url: absoluteUrl(canonical),
       price: vehicle.sellingPrice,
       priceCurrency: "INR",
+      itemCondition: "https://schema.org/UsedCondition",
       availability:
         vehicle.status === "available"
           ? "https://schema.org/InStock"
           : "https://schema.org/LimitedAvailability",
-      seller: { "@type": "AutoDealer", name: dealer.name, telephone: dealer.phone ?? undefined },
-    },
-  };
+      seller: { "@id": dealerId },
+      areaServed: vehicle.branch.city
+        ? { "@type": "City", name: vehicle.branch.city }
+        : undefined,
+    }),
+  });
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      <JsonLd
+        nodes={[
+          vehicleLd,
+          breadcrumbSchema([
+            { name: dealer.name, url: base },
+            { name: "Cars", url: `${base}/cars` },
+            { name: title, url: canonical },
+          ]),
+        ]}
       />
       <TrackView vehicleId={vehicle.id} />
 

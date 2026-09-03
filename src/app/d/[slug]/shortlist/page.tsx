@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { getDealerBySlug } from "@/server/dealer";
 import { ShortlistClient } from "./ShortlistClient";
 
-export const metadata: Metadata = { title: "Your shortlist" };
+// Built entirely from choices saved in this visitor's own browser, so there is
+// nothing here to index — only a URL that would compete with the listing pages
+// that do have content.
+export const metadata: Metadata = { title: "Your shortlist", robots: NOINDEX };
 
 export default async function ShortlistPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/seo";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { LoginForm } from "./LoginForm";
 import { Gauge } from "lucide-react";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", robots: NOINDEX };
 
 const DEMO_ACCOUNTS = [
   { role: "Dealer Owner", email: "owner@sharmaautowheels.in", note: "Full access including cost & margin" },

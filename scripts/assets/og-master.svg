@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1626"/><stop offset="1" stop-color="#05070e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.12" r="0.62">
+      <stop offset="0" stop-color="#4566f1" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#4566f1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4566f1"/><stop offset="1" stop-color="#253397"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#page)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <g transform="translate(96,92) scale(2)">
+    <rect width="64" height="64" rx="14" fill="url(#tile)"/>
+    <g transform="translate(0,-1)">
+      <path fill="#ffffff" d="M6 38 V31.6 C6 30.4 6.9 29.4 8.1 29.2 L20.2 27.6 L27.2 20.9 C28.1 20.1 29.2 19.6 30.4 19.6 H39.2 C40.8 19.6 42.2 20.4 43 21.8 L46.6 28 L54.8 29.6 C56.6 29.95 58 31.6 58 33.5 V38 C58 39.1 57.1 40 56 40 H8 C6.9 40 6 39.1 6 38 Z"/>
+      <circle cx="19" cy="40" r="5.8" fill="#ffffff"/><circle cx="45.5" cy="40" r="5.8" fill="#ffffff"/>
+      <circle cx="19" cy="40" r="2.2" fill="#2639bc"/><circle cx="45.5" cy="40" r="2.2" fill="#2639bc"/>
+    </g>
+  </g>
+
+  <g font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif">
+    <text x="96" y="330" font-size="92" font-weight="700" fill="#ffffff" letter-spacing="-2">CarVyapar<tspan fill="#688cfb">.in</tspan></text>
+    <text x="96" y="398" font-size="34" font-weight="400" fill="#9aa6c2">Digital showroom &amp; CRM for used car dealers</text>
+    <rect x="96" y="450" width="70" height="4" rx="2" fill="#4566f1"/>
+    <text x="96" y="518" font-size="27" font-weight="600" fill="#6b7896" letter-spacing="3">SHOWROOM &#183; INVENTORY &#183; CRM &#183; REPORTS</text>
+  </g>
+</svg>

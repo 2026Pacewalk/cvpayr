@@ -5,10 +5,25 @@ import { getDealerBySlug } from "@/server/dealer";
 import { EnquiryForm } from "@/components/public/EnquiryForm";
 import { Card } from "@/components/ui/primitives";
 
-export const metadata: Metadata = {
-  title: "Sell your car",
-  description: "Get a fair, same-day valuation for your car.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const dealer = await getDealerBySlug(slug);
+  if (!dealer) return { title: "Sell" };
+
+  const city = dealer.city ?? dealer.branches[0]?.city ?? null;
+  const where = city ? ` in ${city}` : "";
+
+  return {
+    title: `Sell Your Car${where}`,
+    description: `Get a fair, same-day valuation for your car from ${dealer.name}${where}. Share the details online and we will tell you what it is worth, with the option to adjust it against your next car.`,
+    alternates: { canonical: `/d/${slug}/sell` },
+  };
+}
+
 
 const STEPS = [
   { icon: ClipboardList, title: "Tell us about your car", body: "Model, year, kilometres and registration state. Takes a minute." },
