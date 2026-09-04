@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MapPin, Phone, Mail, Clock, MessageCircle, ArrowRight } from "lucide-react";
@@ -29,11 +30,13 @@ export async function generateMetadata({
         ? `${all.slice(0, -1).join(", ")} & ${all[all.length - 1]}`
         : `${all.slice(0, 2).join(", ")} & ${all.length - 2} more`;
 
-  return {
+  return pageMeta({
     title: cities ? `Used Car Showrooms in ${cities}` : "Our showrooms",
     description: `Visit ${dealer.name} at ${dealer.branches.length} showroom${dealer.branches.length === 1 ? "" : "s"}${all.length ? ` across ${all.join(", ")}` : ""}. Addresses, directions, phone numbers and opening hours for each location.`,
-    alternates: { canonical: `/d/${slug}/branches` },
-  };
+    canonical: `/d/${slug}/branches`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+  });
 }
 
 

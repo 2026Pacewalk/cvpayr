@@ -204,6 +204,7 @@ export function MarketingFAQ() {
             <button
               onClick={() => setOpenIndex(isOpen ? null : i)}
               aria-expanded={isOpen}
+              aria-controls={`faq-answer-${i}`}
               className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-ink-50/60 sm:px-6 sm:py-5"
             >
               <span className="text-[15px] font-semibold text-ink-900">{f.q}</span>
@@ -214,9 +215,21 @@ export function MarketingFAQ() {
                 )}
               />
             </button>
-            {isOpen && (
-              <p className="px-5 pb-5 text-[14px] leading-relaxed text-ink-600 sm:px-6">{f.a}</p>
-            )}
+            {/* Every answer stays in the HTML whether or not it is open. The
+                page marks all six up as FAQPage, and structured data that
+                describes content absent from the document is a guideline
+                breach — so this collapses with grid rows rather than by
+                unmounting. Google is explicit that accordion-hidden text is
+                fine; missing text is not. */}
+            <div
+              id={`faq-answer-${i}`}
+              className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+              style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+            >
+              <p className="overflow-hidden px-5 text-[14px] leading-relaxed text-ink-600 sm:px-6">
+                <span className={cn("block", isOpen ? "pb-5" : "pb-0")}>{f.a}</span>
+              </p>
+            </div>
           </div>
         );
       })}

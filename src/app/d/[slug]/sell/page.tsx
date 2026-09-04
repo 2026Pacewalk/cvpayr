@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { ClipboardList, Car, IndianRupee, FileSignature } from "lucide-react";
 import { getDealerBySlug } from "@/server/dealer";
@@ -17,11 +18,13 @@ export async function generateMetadata({
   const city = dealer.city ?? dealer.branches[0]?.city ?? null;
   const where = city ? ` in ${city}` : "";
 
-  return {
+  return pageMeta({
     title: `Sell Your Car${where}`,
     description: `Get a fair, same-day valuation for your car from ${dealer.name}${where}. Share the details online and we will tell you what it is worth, with the option to adjust it against your next car.`,
-    alternates: { canonical: `/d/${slug}/sell` },
-  };
+    canonical: `/d/${slug}/sell`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+  });
 }
 
 

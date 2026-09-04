@@ -15,11 +15,8 @@ import { SORT_OPTIONS } from "@/lib/constants";
 import { vehicleSlug } from "@/lib/utils";
 import { JsonLd } from "@/components/JsonLd";
 import {
-  breadcrumbSchema, canonicalFacetQuery, shouldIndexFacets, NOINDEX,
+  breadcrumbSchema, canonicalFacetQuery, shouldIndexFacets, singleFacet, pageMeta,
 } from "@/lib/seo";
-
-/** The first value of a param that may arrive repeated. */
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 /**
  * Names the page after what is actually being shown.
@@ -32,7 +29,12 @@ function listingSubject(sp: Record<string, string | string[] | undefined>): stri
   // Ordered the way the phrase reads: "Maruti Swift", "Maruti Petrol",
   // "Petrol Hatchback". Every facet that can be indexed appears, so no two
   // indexable URLs end up sharing a title and competing with each other.
-  return [one(sp.make), one(sp.model), one(sp.fuel), one(sp.bodyType)]
+  return [
+    singleFacet(sp, "make"),
+    singleFacet(sp, "model"),
+    singleFacet(sp, "fuel"),
+    singleFacet(sp, "bodyType"),
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -53,15 +55,17 @@ export async function generateMetadata({
   const subject = listingSubject(sp);
   const title = subject ? `Used ${subject} Cars${where}` : `Used Cars${where}`;
 
-  return {
+  return pageMeta({
     title,
     description: `${title} at ${dealer.name}. Every listing shows real photos, exact kilometres, ownership history and verified paperwork. Book a test drive or ask for an on-road price.`,
-    // Canonical is rebuilt from the indexable facets only, so a URL carrying a
-    // sort order or a search term consolidates into the plain listing instead
-    // of competing with it.
-    alternates: { canonical: `/d/${slug}/cars${canonicalFacetQuery(sp)}` },
-    robots: shouldIndexFacets(sp) ? undefined : NOINDEX,
-  };
+    // Rebuilt from the indexable facets only, so a URL carrying a sort order or
+    // a search term consolidates into the plain listing instead of competing
+    // with it.
+    canonical: `/d/${slug}/cars${canonicalFacetQuery(sp)}`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+    index: shouldIndexFacets(sp),
+  });
 }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -82,10 +86,17 @@ export default async function CarsPage({
   const filters = parseVehicleFilters(sp);
   const opts = { dealerId: dealer.id, publicOnly: true as const };
 
+  const PAGE_SIZE = 12;
   const [result, facets] = await Promise.all([
-    listVehicles(filters, { ...opts, pageSize: 12 }),
+    listVehicles(filters, { ...opts, pageSize: PAGE_SIZE }),
     vehicleFacets(opts),
   ]);
+
+  // A page past the last one is not an empty listing, it is a page that does
+  // not exist. Rendering it 200 lets ?page=9999 mint an unlimited supply of
+  // thin, self-canonical duplicates of this listing for a crawler to walk.
+  const lastPage = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+  if ((filters.page ?? 1) > lastPage) notFound();
 
   const branches = dealer.branches.map((b) => ({ id: b.id, name: b.name, city: b.city }));
   const queryParams = Object.fromEntries(

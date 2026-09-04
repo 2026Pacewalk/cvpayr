@@ -13,6 +13,14 @@ import { getDealerBySlug } from "@/server/dealer";
 export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
 
+/**
+ * The icon is drawn from mutable data — a dealer can rename themselves or pick
+ * a new accent — but the generated route is otherwise cached hard and keyed
+ * only on the build. An hour bounds how long a stale mark can survive, and
+ * keeps the browser's favicon request off the database on every page load.
+ */
+export const revalidate = 3600;
+
 /** Up to two initials — more than that is unreadable in a 16px tab. */
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);

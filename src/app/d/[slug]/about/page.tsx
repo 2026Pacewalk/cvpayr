@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShieldCheck, FileCheck2, Wallet, Repeat, Building2, Users, Car, Award } from "lucide-react";
@@ -18,13 +19,15 @@ export async function generateMetadata({
   const city = dealer.city ?? dealer.branches[0]?.city ?? null;
   const where = city ? ` in ${city}` : "";
 
-  return {
-    title: `About ${dealer.name}`,
+  return pageMeta({
+    title: "About us",
     description:
       dealer.about?.slice(0, 155) ??
       `Who we are, how we inspect and price our cars, and why buyers${where} keep coming back to ${dealer.name}.`,
-    alternates: { canonical: `/d/${slug}/about` },
-  };
+    canonical: `/d/${slug}/about`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+  });
 }
 
 

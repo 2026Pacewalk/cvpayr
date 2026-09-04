@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { Wallet, Clock3, FileCheck2, Percent, CheckCircle2 } from "lucide-react";
 import { getDealerBySlug } from "@/server/dealer";
@@ -19,11 +20,13 @@ export async function generateMetadata({
   const city = dealer.city ?? dealer.branches[0]?.city ?? null;
   const where = city ? ` in ${city}` : "";
 
-  return {
+  return pageMeta({
     title: `Used Car Loan & Finance${where}`,
     description: `Arrange finance on a pre-owned car from ${dealer.name}${where}. Tell us what you are looking at and we will come back with the loan options you are likely to be approved for.`,
-    alternates: { canonical: `/d/${slug}/finance` },
-  };
+    canonical: `/d/${slug}/finance`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+  });
 }
 
 

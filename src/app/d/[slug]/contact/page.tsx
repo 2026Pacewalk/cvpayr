@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react";
 import { getDealerBySlug, dealerWorkingHours } from "@/server/dealer";
@@ -18,11 +19,13 @@ export async function generateMetadata({
   const city = dealer.city ?? dealer.branches[0]?.city ?? null;
   const where = city ? ` in ${city}` : "";
 
-  return {
-    title: `Contact ${dealer.name}${where}`,
+  return pageMeta({
+    title: `Contact & Showroom Addresses${where}`,
     description: `Call, WhatsApp or visit ${dealer.name}${where}. Showroom addresses, phone numbers and opening hours for all ${dealer.branches.length} location${dealer.branches.length === 1 ? "" : "s"}.`,
-    alternates: { canonical: `/d/${slug}/contact` },
-  };
+    canonical: `/d/${slug}/contact`,
+    images: [dealer.coverUrl, dealer.logoUrl],
+    siteName: dealer.name,
+  });
 }
 
 

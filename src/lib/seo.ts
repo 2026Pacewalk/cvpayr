@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 /**
  * Shared SEO primitives: absolute URLs, structured data, and the indexing
  * policy for faceted pages.
@@ -57,23 +59,51 @@ export const NOINDEX = { index: false, follow: true } as const;
 const INDEXABLE_FACETS = ["make", "model", "bodyType", "fuel", "city"] as const;
 
 /**
+ * Facets the inventory filter treats as a comma-separated multi-select.
+ *
+ * many() in server/inventory.ts splits these on commas, so ?fuel=Petrol,Diesel
+ * is two filters wearing one parameter. Counting it as one facet is how a
+ * combination page slipped past the guard below and stayed indexable.
+ */
+const MULTI_VALUE = new Set(["fuel", "bodyType", "transmission"]);
+
+/** Every value a param actually resolves to, matching how the server parses it. */
+function facetValues(key: string, raw: string | string[]): string[] {
+  const parts = Array.isArray(raw) ? raw : [raw];
+  const split = MULTI_VALUE.has(key) ? parts.flatMap((v) => String(v).split(",")) : parts;
+  return split.map((v) => String(v).trim()).filter(Boolean);
+}
+
+/** A page number that is a positive integer, or null. */
+function pageNumber(raw: string | string[] | undefined): number | null {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (v === undefined || v === "") return null;
+  return /^[1-9]\d{0,4}$/.test(v) ? Number(v) : null;
+}
+
+/**
  * Decides whether a filtered inventory URL should be indexed.
  *
  * One or two meaningful facets earn a place in the index. Free-text search,
  * sorting, and deeper combinations do not: they are the same stock rearranged,
  * and each one a crawler follows is one it does not spend on a car listing.
+ *
+ * A junk page value is treated as junk rather than as page 1, so ?page=99999 or
+ * ?page=abc cannot mint an indexable duplicate of the listing.
  */
 export function shouldIndexFacets(sp: Record<string, string | string[] | undefined>): boolean {
-  const present = Object.entries(sp).filter(([, v]) =>
-    Array.isArray(v) ? v.length > 0 : v !== undefined && v !== "",
-  );
-
   let facets = 0;
-  for (const [key, value] of present) {
-    if (key === "page") continue;
+
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined || value === "" || (Array.isArray(value) && !value.length)) continue;
+
+    if (key === "page") {
+      if (pageNumber(value) === null) return false;
+      continue;
+    }
     if (!(INDEXABLE_FACETS as readonly string[]).includes(key)) return false;
-    // A multi-select that actually selected several values is a combination.
-    if (Array.isArray(value) && value.length > 1) return false;
+    // Two values of the same facet is a combination, however it was spelled.
+    if (facetValues(key, value).length > 1) return false;
     facets += 1;
   }
   return facets <= 2;
@@ -84,13 +114,33 @@ export function canonicalFacetQuery(
   sp: Record<string, string | string[] | undefined>,
 ): string {
   const params = new URLSearchParams();
-  for (const key of [...INDEXABLE_FACETS, "page"]) {
-    const value = sp[key];
-    const first = Array.isArray(value) ? value[0] : value;
-    if (first && !(key === "page" && first === "1")) params.set(key, first);
+
+  for (const key of INDEXABLE_FACETS) {
+    const raw = sp[key];
+    if (raw === undefined) continue;
+    const values = facetValues(key, raw);
+    // A multi-select collapses to nothing rather than to its first value: the
+    // canonical must point at a page that exists, and "the petrol ones" is not
+    // the same page as "the petrol and diesel ones".
+    if (values.length === 1) params.set(key, values[0]!);
   }
+
+  const page = pageNumber(sp.page);
+  if (page && page > 1) params.set("page", String(page));
+
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+/** The single value of a facet, or null when it is absent or a multi-select. */
+export function singleFacet(
+  sp: Record<string, string | string[] | undefined>,
+  key: string,
+): string | null {
+  const raw = sp[key];
+  if (raw === undefined) return null;
+  const values = facetValues(key, raw);
+  return values.length === 1 ? values[0]! : null;
 }
 
 /* ---------------------------- STRUCTURED DATA -------------------------- */
@@ -295,4 +345,53 @@ export function autoDealerSchema(
     },
     parentOrganization: { "@id": `${siteUrl()}/#organization` },
   });
+}
+
+/* ------------------------------- PAGE META ------------------------------ */
+
+/**
+ * Builds a page's complete metadata from one title and description.
+ *
+ * Next merges metadata down the tree field by field, so a page that sets only
+ * `title` and `description` silently inherits its layout's openGraph and
+ * twitter blocks. That is how every showroom sub-page came to share the
+ * dealer home page's social preview, and how a car listing's Twitter card
+ * ended up describing the dealership instead of the car. Setting all four from
+ * a single source is the only reliable way to keep them in step.
+ */
+export function pageMeta(input: {
+  title: string;
+  description: string;
+  /** Path, not a full URL — metadataBase makes it absolute. */
+  canonical: string;
+  /** First non-empty wins. Absolute URLs are left alone. */
+  images?: (string | null | undefined)[];
+  /** Overrides the site name on a share, for white-label showrooms. */
+  siteName?: string;
+  /** Pass false for pages that exist for a visitor but not for an index. */
+  index?: boolean;
+}): Metadata {
+  const image = (input.images ?? []).find(Boolean);
+  const images = image ? [absoluteUrl(image)] : undefined;
+
+  return {
+    title: input.title,
+    description: input.description,
+    alternates: { canonical: input.canonical },
+    openGraph: {
+      type: "website",
+      url: input.canonical,
+      title: input.title,
+      description: input.description,
+      siteName: input.siteName,
+      images,
+    },
+    twitter: {
+      card: images ? "summary_large_image" : "summary",
+      title: input.title,
+      description: input.description,
+      images,
+    },
+    ...(input.index === false ? { robots: NOINDEX } : {}),
+  };
 }

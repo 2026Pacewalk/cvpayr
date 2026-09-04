@@ -34,7 +34,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const description =
     dealer.websiteSettings?.metaDescription ??
     dealer.about?.slice(0, 155) ??
-    `Browse inspected pre-owned cars at ${dealer.name}${where}. Verified paperwork, finance help and test drives across ${showrooms} showroom${showrooms === 1 ? "" : "s"}.`;
+    // A dealer mid-onboarding can have no active branch yet, and "across 0
+    // showrooms" is not a sentence to publish as a search result.
+    `Browse inspected pre-owned cars at ${dealer.name}${where}. Verified paperwork, finance help and test drives${
+      showrooms > 0 ? ` across ${showrooms} showroom${showrooms === 1 ? "" : "s"}` : ""
+    }.`;
 
   const image = dealer.coverUrl ?? dealer.logoUrl ?? null;
 

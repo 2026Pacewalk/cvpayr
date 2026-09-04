@@ -91,7 +91,9 @@ export function showroomFaq(
     const brandLine = brands.length ? ` Current stock includes ${list(brands)}.` : "";
     items.push({
       question: `How many used cars does ${dealer.name} have in stock?`,
-      answer: `${dealer.name} currently has ${data.stock} pre-owned car${data.stock === 1 ? "" : "s"} listed${where}, across ${count} showroom${count === 1 ? "" : "s"}.${brandLine} Every listing shows real photos, the exact kilometres and the ownership record.`,
+      answer: `${dealer.name} currently has ${data.stock} pre-owned car${data.stock === 1 ? "" : "s"} listed${where}${
+        count > 0 ? `, across ${count} showroom${count === 1 ? "" : "s"}` : ""
+      }.${brandLine} Every listing shows real photos, the exact kilometres and the ownership record.`,
     });
   }
 

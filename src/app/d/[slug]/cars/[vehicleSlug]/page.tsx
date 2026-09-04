@@ -25,7 +25,7 @@ import { VehicleRowCard } from "@/components/VehicleCard";
 import { Badge, Card, DataList } from "@/components/ui/primitives";
 import { TrackView } from "@/components/public/TrackView";
 import { JsonLd } from "@/components/JsonLd";
-import { absoluteUrl, breadcrumbSchema, compact } from "@/lib/seo";
+import { absoluteUrl, breadcrumbSchema, compact, pageMeta } from "@/lib/seo";
 
 type Props = { params: Promise<{ slug: string; vehicleSlug: string }> };
 
@@ -49,17 +49,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${vehicleTitle(vehicle)} — ${formatPrice(vehicle.sellingPrice)}`;
   const description = `${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.variant ?? ""} for sale at ${dealer.name}, ${vehicle.branch.city}. ${formatKm(vehicle.kmDriven)}, ${vehicle.fuelType}, ${vehicle.transmission}, ${vehicle.ownership} owner. ${vehicle.description?.slice(0, 90) ?? ""}`.trim();
 
-  return {
+  return pageMeta({
     title,
     description,
-    alternates: { canonical: `/d/${dealer.slug}/cars/${makeSlug(vehicle)}` },
-    openGraph: {
-      title,
-      description,
-      type: "website",
-      images: vehicle.images[0] ? [vehicle.images[0].url] : undefined,
-    },
-  };
+    canonical: `/d/${dealer.slug}/cars/${makeSlug(vehicle)}`,
+    // The car's own photo, not the dealership's cover: a shared listing that
+    // previews the showroom front is a shared listing nobody clicks.
+    images: [vehicle.images.find((i) => i.kind === "photo")?.url, dealer.coverUrl],
+    siteName: dealer.name,
+  });
 }
 
 export default async function VehicleDetailPage({ params }: Props) {
